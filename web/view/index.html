@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地文件下载服务</title>
+    <link rel="icon" type="image/x-icon" href="/web/static/favicon.ico">
+    <link rel="stylesheet" href="/web/static/bootstrap.min.css">
+    <style>
+        a {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .table {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        td img {
+            margin-right: 5px;
+        }
+
+        th img {
+            width: 20px;
+        }
+
+        .nav > li + li:before {
+            color: #CCCCCC;
+            content: "/ ";
+            padding: 0 5px;
+        }
+    </style>
+</head>
+<body>
+<table class="table">
+    <thead>
+    <tr>
+        <th colspan="3">
+            <ul class="nav" data-bs-toggle="tooltip" title="">
+
+            </ul>
+        </th>
+    </tr>
+    <tr>
+        <th scope="col">文件目录</th>
+        <th scope="col">大小</th>
+        <th scope="col">时间</th>
+    </tr>
+    </thead>
+    <tbody>
+
+    </tbody>
+</table>
+
+</body>
+<script src="/web/static/jquery-3.7.1.min.js"></script>
+<script>
+    getList()
+
+    function getList(dirPath = '') {
+        $.get("/api/list", {"dir_path": dirPath}, function (res) {
+            $('.nav').attr("title", "本地服务器存放路径：" + res.absolute_dir)
+            $('.nav').children().remove();
+            for (const item of res.relative_dirs) {
+                for (let k in item) {
+                    let name = k
+                    if (k === '') name = '根目录'
+                    $('.nav').append('<li><a data-dir_path="' + item[k] + '" onclick="getNextList(this)">' + name + '</a></li>');
+                }
+            }
+
+            if (res.list.length === 0) {
+                $('tbody').html('<tr><td style="text-align: center" colspan="4">文件夹空空如也！</td></tr>');
+                return
+            }
+            let tbody = '';
+            res.list.map(v => {
+                tbody += '<tr>'
+                if (v.is_dir) {
+                    tbody += '<td><a onclick="getNextList(this)" data-dir_path="' + v.dir_path + '"><img src="/web/static/folder.png" alt="">' + v.name + '</a></td>'
+                    tbody += '<td></td>'
+                } else {
+                    tbody += '<td><img src="/web/static/file.png" alt="">' + v.name + '<button onclick="download(this)" data-dirname_key="' + v.dirname_key + '" class="btn btn-sm btn-link">下载</button>' + '</td>'
+                    tbody += '<td>' + v.size + ' ' + v.size_unit + '</td>'
+                }
+                tbody += '<td>' + v.mod_time + '</td>'
+                tbody += '</tr>'
+            })
+            $('tbody').html(tbody);
+
+        }, "json")
+    }
+
+    function getNextList(obj) {
+        let dirPath = $(obj).data('dir_path')
+        getList(dirPath)
+    }
+
+    function download(obj) {
+        let dirname_key = $(obj).data('dirname_key');
+        location.href = "/api/download?data=" + dirname_key;
+    }
+</script>
+</html>
+
+

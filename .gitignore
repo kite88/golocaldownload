@@ -1,0 +1,7 @@
+.idea
+.DS_Store
+build
+config/*.ini
+download_lib
+/test/*
+!test/example_test.go

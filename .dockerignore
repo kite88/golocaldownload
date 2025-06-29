@@ -1,0 +1,7 @@
+.git
+*.md
+build.bat
+build/output/
+bin/
+download_lib/
+test/
