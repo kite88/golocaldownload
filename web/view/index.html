@@ -58,20 +58,23 @@
 <script>
     getList()
 
-    function getList(dirPath = '') {
+    function getList() {
+        let dirPath = getQueryParam('s') ?? '';
         $.get("/api/list", {"dir_path": dirPath}, function (res) {
-            $('.nav').attr("title", "本地服务器存放路径：" + res.absolute_dir)
-            $('.nav').children().remove();
+            let $nav = $('.nav')
+            $nav.attr("title", "本地服务器存放路径：" + res.absolute_dir)
+            $nav.children().remove();
             for (const item of res.relative_dirs) {
                 for (let k in item) {
                     let name = k
                     if (k === '') name = '根目录'
-                    $('.nav').append('<li><a data-dir_path="' + item[k] + '" onclick="getNextList(this)">' + name + '</a></li>');
+                    $nav.append('<li><a data-dir_path="' + item[k] + '" onclick="getNextList(this)">' + name + '</a></li>');
                 }
             }
 
+            let $tbody = $('tbody');
             if (res.list.length === 0) {
-                $('tbody').html('<tr><td style="text-align: center" colspan="4">文件夹空空如也！</td></tr>');
+                $tbody.html('<tr><td style="text-align: center" colspan="4">文件夹空空如也！</td></tr>');
                 return
             }
             let tbody = '';
@@ -87,14 +90,25 @@
                 tbody += '<td>' + v.mod_time + '</td>'
                 tbody += '</tr>'
             })
-            $('tbody').html(tbody);
-
+            $tbody.html(tbody);
         }, "json")
     }
 
     function getNextList(obj) {
         let dirPath = $(obj).data('dir_path')
-        getList(dirPath)
+        changeUrlParam(dirPath)
+        getList()
+    }
+
+    function changeUrlParam(dirPath = '') {
+        let url = new URL(window.location.origin);
+        url.searchParams.append('s', dirPath);
+        window.history.replaceState(null, null, url.toString())
+    }
+
+    function getQueryParam(param) {
+        const match = RegExp('[?&]' + param + '=([^&]*)').exec(window.location.search);
+        return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
     }
 
     function download(obj) {
