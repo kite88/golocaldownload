@@ -5,11 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>本地文件下载服务</title>
     <link rel="icon" type="image/x-icon" href="/web/static/favicon.ico">
-    <link rel="stylesheet" href="/web/static/bootstrap.min.css">
+    <link rel="stylesheet" href="/web/static/bootstrap/v5.3.5/bootstrap.min.css">
     <style>
         a {
             text-decoration: none;
             cursor: pointer;
+        }
+
+        .row {
+            padding: 10px;
+        }
+
+        .input-group {
+            max-width: 300px;
         }
 
         .table {
@@ -25,6 +33,10 @@
             width: 20px;
         }
 
+        .nav > li {
+            font-weight: bold;
+        }
+
         .nav > li + li:before {
             color: #CCCCCC;
             content: "/ ";
@@ -33,89 +45,58 @@
     </style>
 </head>
 <body>
-<table class="table">
-    <thead>
-    <tr>
-        <th colspan="3">
-            <ul class="nav" data-bs-toggle="tooltip" title="">
+<div class="container">
+    <div class="row">
+        <div class="col-lg-6 col-md-6 col-sm-6">
+            <ul class="nav" data-bs-toggle="tooltip" title=""></ul>
+        </div>
+        <div class="col-lg-6 col-md-6 col-sm-6">
+            <div class="input-group input-group-sm">
+                <input id="search-input-text" type="text" class="form-control" placeholder="输入检索信息"
+                       aria-label="输入检索信息" aria-describedby="basic-addon2">
+                <div class="input-group-append">
+                    <button id="search-open-btn" class="btn btn-outline-secondary" type="button">全局检索</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <table class="table">
+        <thead>
+        <tr>
+            <th scope="col">文件目录</th>
+            <th scope="col">大小</th>
+            <th scope="col">时间</th>
+        </tr>
+        </thead>
+        <tbody>
 
-            </ul>
-        </th>
-    </tr>
-    <tr>
-        <th scope="col">文件目录</th>
-        <th scope="col">大小</th>
-        <th scope="col">时间</th>
-    </tr>
-    </thead>
-    <tbody>
-
-    </tbody>
-</table>
-
+        </tbody>
+    </table>
+</div>
+<!-- Modal -->
+<div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="input-group input-group-sm">
+                    <input id="search-input-text-i" type="text" class="form-control" placeholder="输入检索信息"
+                           aria-label="输入检索信息" aria-describedby="basic-addon2">
+                    <div class="input-group-append">
+                        <button id="search-get-btn" class="btn btn-outline-secondary" type="button">全局检索</button>
+                    </div>
+                </div>
+                <span id="res-length"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div id="search-model-body" class="modal-body"></div>
+            <!--            <div id="search-modal-footer" class="modal-footer"></div>-->
+        </div>
+    </div>
+</div>
 </body>
-<script src="/web/static/jquery-3.7.1.min.js"></script>
-<script>
-    getList()
-
-    function getList() {
-        let dirPath = getQueryParam('s') ?? '';
-        $.get("/api/list", {"dir_path": dirPath}, function (res) {
-            let $nav = $('.nav')
-            $nav.attr("title", "本地服务器存放路径：" + res.absolute_dir)
-            $nav.children().remove();
-            for (const item of res.relative_dirs) {
-                for (let k in item) {
-                    let name = k
-                    if (k === '') name = '根目录'
-                    $nav.append('<li><a data-dir_path="' + item[k] + '" onclick="getNextList(this)">' + name + '</a></li>');
-                }
-            }
-
-            let $tbody = $('tbody');
-            if (res.list.length === 0) {
-                $tbody.html('<tr><td style="text-align: center" colspan="4">文件夹空空如也！</td></tr>');
-                return
-            }
-            let tbody = '';
-            res.list.map(v => {
-                tbody += '<tr>'
-                if (v.is_dir) {
-                    tbody += '<td><a onclick="getNextList(this)" data-dir_path="' + v.dir_path + '"><img src="/web/static/folder.png" alt="">' + v.name + '</a></td>'
-                    tbody += '<td></td>'
-                } else {
-                    tbody += '<td><img src="/web/static/file.png" alt="">' + v.name + '<button onclick="download(this)" data-dirname_key="' + v.dirname_key + '" class="btn btn-sm btn-link">下载</button>' + '</td>'
-                    tbody += '<td>' + v.size + ' ' + v.size_unit + '</td>'
-                }
-                tbody += '<td>' + v.mod_time + '</td>'
-                tbody += '</tr>'
-            })
-            $tbody.html(tbody);
-        }, "json")
-    }
-
-    function getNextList(obj) {
-        let dirPath = $(obj).data('dir_path')
-        changeUrlParam(dirPath)
-        getList()
-    }
-
-    function changeUrlParam(dirPath = '') {
-        let url = new URL(window.location.origin);
-        url.searchParams.append('s', dirPath);
-        window.history.replaceState(null, null, url.toString())
-    }
-
-    function getQueryParam(param) {
-        const match = RegExp('[?&]' + param + '=([^&]*)').exec(window.location.search);
-        return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
-    }
-
-    function download(obj) {
-        let dirname_key = $(obj).data('dirname_key');
-        location.href = "/api/download?data=" + dirname_key;
-    }
-</script>
+<script src="/web/static/bootstrap/v5.3.5/bootstrap.min.js"></script>
+<script src="/web/static/jquery/jquery-3.7.1.min.js"></script>
+<script src="/web/static/assets/js/index.js"></script>
 </html>
 
 

@@ -11,5 +11,6 @@ func apiR(r *gin.Engine) {
 	{
 		api.GET("/list", handle.Ins.List)
 		api.GET("/download", handle.Ins.Download)
+		api.POST("/search", handle.Ins.Search)
 	}
 }
