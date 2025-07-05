@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"github.com/gin-gonic/gin"
 	"golocaldownload/common"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -22,24 +24,26 @@ type OutEntry struct {
 }
 
 type FileEntry = struct {
-	Name       string  `json:"name"`
-	IsDir      bool    `json:"is_dir"`
-	Size       float64 `json:"size"`
-	SizeUnit   string  `json:"size_unit"`
-	ModTime    string  `json:"mod_time"`
-	DirPath    string  `json:"dir_path"`
-	DirnameKey string  `json:"dirname_key"`
+	Name        string  `json:"name"`
+	IsDir       bool    `json:"is_dir"`
+	Size        float64 `json:"size"`
+	SizeUnit    string  `json:"size_unit"`
+	ModTime     string  `json:"mod_time"`
+	ParentPath  string  `json:"parent_path"`
+	Path        string  `json:"path"`
+	PathnameKey string  `json:"pathname_key"`
 }
 
+const PathSep = string(os.PathSeparator)
+
 func (*Handle) List(ctx *gin.Context) {
-	const PathSep = string(os.PathSeparator)
-	rootDir := os.Getenv("GLD_download_lib_path")
+	var rootDir = os.Getenv("GLD_download_lib_path")
 
 	dir := rootDir
-	dirPath := strings.Trim(ctx.Query("dir_path"), " ")
 
-	if len(dirPath) > 0 {
-		dir = dir + dirPath
+	path := strings.Trim(ctx.Query("path"), " ")
+	if len(path) > 0 {
+		dir = rootDir + path
 	}
 
 	pathRes, err := common.GetDirAllFilePaths(dir)
@@ -55,25 +59,32 @@ func (*Handle) List(ctx *gin.Context) {
 		if err != nil {
 			continue
 		}
-		size, unit := common.FileSizeFormat(uint64(info.Size()))
-		list = append(list, FileEntry{
-			Name:       paths.Name(),
-			IsDir:      paths.IsDir(),
-			ModTime:    info.ModTime().Format("2006/01/02 15:04"),
-			Size:       common.KeepDecimals(size, 2),
-			SizeUnit:   unit,
-			DirPath:    dirPath + PathSep + info.Name(),
-			DirnameKey: base64.URLEncoding.EncodeToString([]byte(dir + PathSep + paths.Name())),
-		})
+		list = append(list, formatLFileInfo(info, dir, rootDir))
 	}
 
 	ctx.JSON(http.StatusOK, OutEntry{
 		RootDir:      rootDir,
-		AbsoluteDir:  rootDir + dirPath,
-		RelativeDirs: common.StrPathToStrPaths(dirPath, PathSep),
+		AbsoluteDir:  rootDir + path,
+		RelativeDirs: common.StrPathToStrPaths(path, PathSep),
 		List:         list,
 	})
 	return
+}
+
+func formatLFileInfo(info fs.FileInfo, path string, rootDir string) FileEntry {
+	size, unit := common.FileSizeFormat(uint64(info.Size()))
+	parentPath := strings.TrimPrefix(path, rootDir)
+	finalPath := parentPath + PathSep + info.Name()
+	return FileEntry{
+		Name:        info.Name(),
+		IsDir:       info.IsDir(),
+		ModTime:     info.ModTime().Format("2006/01/02 15:04"),
+		Size:        common.KeepDecimals(size, 2),
+		SizeUnit:    unit,
+		ParentPath:  parentPath,
+		Path:        finalPath,
+		PathnameKey: base64.URLEncoding.EncodeToString([]byte(rootDir + finalPath)),
+	}
 }
 
 func (*Handle) Download(ctx *gin.Context) {
@@ -96,5 +107,49 @@ func (*Handle) Download(ctx *gin.Context) {
 
 	// 发送文件给客户端
 	ctx.File(filePath)
+	return
+}
+
+// Search 遍历目录并搜索文件
+func (*Handle) Search(ctx *gin.Context) {
+	rootDir := os.Getenv("GLD_download_lib_path")
+
+	var list = make([]FileEntry, 0)
+	keyword := strings.Trim(ctx.PostForm("keyword"), " ")
+	if len(keyword) == 0 {
+		ctx.JSON(http.StatusOK, list)
+		return
+	}
+
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == rootDir {
+			return nil
+		}
+		// 如果是文件且匹配关键字
+		path = strings.TrimSuffix(path, PathSep+info.Name())
+		pathStr := ""
+		for i, s := range strings.Split(path, PathSep) {
+			if i == 0 {
+				continue
+			}
+			pathStr += PathSep + s
+		}
+
+		if common.FuzzyMatch(info.Name(), keyword) {
+			list = append(list, formatLFileInfo(info, pathStr, rootDir))
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusOK, list)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, list)
 	return
 }

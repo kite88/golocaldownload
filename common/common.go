@@ -89,6 +89,11 @@ func StrPathToStrPaths(strPath string, sep string) []map[string]string {
 	return result
 }
 
+// FuzzyMatch 模糊匹配函数（简单子字符串匹配）
+func FuzzyMatch(filename, keyword string) bool {
+	return strings.Contains(strings.ToLower(filename), strings.ToLower(keyword))
+}
+
 func FindModuleRoot(dir string) (string, error) {
 	for {
 		if fi, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil && !fi.IsDir() {
