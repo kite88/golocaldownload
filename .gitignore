@@ -6,3 +6,4 @@ download_lib
 /test/*
 !test/example_test.go
 *.local.yml
+*.local.bat
