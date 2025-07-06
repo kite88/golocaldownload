@@ -50,7 +50,7 @@
 ### **五、docker制品直接部署**
 #### Step 1 拉取镜像
 `docker pull tutudev99/golocaldownload:25.07.06.16`
-##### 如果由于网络环境拉不下来可以[点击这里去阿里云仓库拉取部署](#section1)
+##### 如果由于网络环境拉不下来可以[点击这里阿里云制品仓库拉取部署方式](#section1)
 #### Step 2 运行容器
 `docker run
     -p 9801:9801
