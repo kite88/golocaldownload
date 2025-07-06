@@ -18,14 +18,14 @@
 #### Step 1 代码拉下来
 #### Step 2 进入到项目根目录直接命令行依次输入以下两条指令
 ##### 构建
-`docker build -t golocaldownload:25.07.06.16 .` 
+`docker build -t golocaldownload:25.07.07.00 .` 
 ##### 运行
 `docker run
     -p 9801:9801
     -v /home/download_lib:/root/download_lib
     --restart always 
     --name golocaldownload-app 
-    -d golocaldownload:25.07.06.16`
+    -d golocaldownload:25.07.07.00`
 ###### 参数说明 
 ###### -p 9801:9801，将本地主机的 9801 端口映射到容器内的 9801 端口 
 ###### -v /home/download_lib:/root/download_lib，将主机的 /home/download_lib 目录挂载到容器内的 /root/download_lib 目录
@@ -49,7 +49,7 @@
 ============================================================
 ### **五、docker制品直接部署**
 #### Step 1 拉取镜像
-`docker pull tutudev99/golocaldownload:25.07.06.16`
+`docker pull tutudev99/golocaldownload:25.07.07.00`
 ##### 如果由于网络环境拉不下来可以[点击这里阿里云制品仓库拉取部署方式](#section1)
 #### Step 2 运行容器
 `docker run
@@ -57,7 +57,7 @@
     --name golocaldownload
     -v /home/download_lib:/root/download_lib
     --restart always
-    -d tutudev99/golocaldownload:25.07.06.16` 
+    -d tutudev99/golocaldownload:25.07.07.00` 
 ###### 参数说明
 ###### -p 9801:9801，将本地主机的 9801 端口映射到容器内的 9801 端口
 ###### --name golocaldownload-app，将容器命名为 golocaldownload-app
@@ -73,14 +73,14 @@
 
 ###### <a id="section1">阿里云制品仓库拉取部署方式</a>
 ##### Step 1 从阿里云仓库拉取镜像
-`docker pull registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:25.07.06.16`
+`docker pull registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:25.07.07.00`
 #### Step 2 运行容器
 `docker run
     -p 9801:9801
     --name golocaldownload
     -v /home/download_lib:/root/download_lib
     --restart always
-    -d registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:25.07.06.16`
+    -d registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:25.07.07.00`
 ###### 参数说明
 ###### -p 9801:9801，将本地主机的 9801 端口映射到容器内的 9801 端口
 ###### --name golocaldownload-app，将容器命名为 golocaldownload-app
