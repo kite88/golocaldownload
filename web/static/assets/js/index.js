@@ -108,7 +108,7 @@ function getSearchList(keyword) {
     $mBody.html(loading);
     $resLen.html('')
     $.post("/api/search", {keyword: keyword}, function (res) {
-        if (res.length === 0) return $mBody.html('<h6>没有检索到相应的内容</h6>');
+        if (res.length === 0) return $mBody.html('<h6>没有检索到相应的文件或目录</h6>');
         $resLen.html('检索到<b style="color: red">' + res.length + '</b>条记录')
         let html = '<ul class="list-group">'
         let index = 0;

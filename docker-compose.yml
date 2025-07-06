@@ -7,4 +7,4 @@ services:
       - "9801:9801"
     restart: always
     volumes:
-      - /root/download_lib/:/root/download_lib/
+      - /home/download_lib:/root/download_lib
