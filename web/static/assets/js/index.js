@@ -103,10 +103,13 @@ $('#search-get-btn').on('click', function () {
 
 function getSearchList(keyword) {
     const $mBody = $('#search-model-body');
-    $mBody.html('');
+    const $resLen = $('#res-length');
+    const loading = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div><span>正在检索，请稍等...</span>'
+    $mBody.html(loading);
+    $resLen.html('')
     $.post("/api/search", {keyword: keyword}, function (res) {
         if (res.length === 0) return $mBody.html('<h6>没有检索到相应的内容</h6>');
-        $('#res-length').html('检索到<b style="color: red">' + res.length + '</b>条记录')
+        $resLen.html('检索到<b style="color: red">' + res.length + '</b>条记录')
         let html = '<ul class="list-group">'
         let index = 0;
         res.map(item => {
@@ -124,7 +127,7 @@ function getSearchList(keyword) {
                 btn += '<a class="btn-link" href="' + window.location.origin + '?s=' + item.parent_path + '&f=' + item.name + '">定位到文件目录</a>'
             }
             let resultPath = item.path.replace(/\\|\//g, function (x) {
-                return ' / '
+                return '/'
             });
             resultPath = resultPath.replaceAll(keyword, '<b style="color: red">' + keyword + '</b>')
             html += index + '   ' + img + ' 根目录' + resultPath + ' ' + size + ' ' + btn

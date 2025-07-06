@@ -5,3 +5,4 @@ config/*.ini
 download_lib
 /test/*
 !test/example_test.go
+*.local.yml

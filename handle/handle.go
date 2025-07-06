@@ -129,6 +129,7 @@ func (*Handle) Search(ctx *gin.Context) {
 			return nil
 		}
 		// 如果是文件且匹配关键字
+		path = strings.TrimPrefix(path, rootDir)
 		path = strings.TrimSuffix(path, PathSep+info.Name())
 		pathStr := ""
 		for i, s := range strings.Split(path, PathSep) {
