@@ -29,7 +29,7 @@
 ###### 参数说明 
 ###### -p 9801:9801，将本地主机的 9801 端口映射到容器内的 9801 端口 
 ###### -v /home/download_lib:/root/download_lib，将主机的 /home/download_lib 目录挂载到容器内的 /root/download_lib 目录
-###### （如果你是windows系统且安装了Docker Desktop及Linux子系统，也可以用windows目录，如: -v D:\download_lib:/root/download_lib）
+###### （如果你是windows系统且安装了Linux子系统及Docker Desktop，也可以用windows目录，如: -v D:\download_lib:/root/download_lib）
 ###### --restart always，设置容器的重启策略为always，即使容器停止也会自动重启 
 ###### --name golocaldownload-app，将容器命名为 golocaldownload-app 
 ###### -d 在后台运行容器并返回容器 ID
@@ -62,7 +62,7 @@
 ###### -p 9801:9801，将本地主机的 9801 端口映射到容器内的 9801 端口
 ###### --name golocaldownload-app，将容器命名为 golocaldownload-app
 ###### -v /home/download_lib:/root/download_lib，将主机的 /home/download_lib 目录挂载到容器内的 /root/download_lib 目录
-###### （如果你是windows系统且安装了Docker Desktop及Linux子系统，也可以用windows目录，如: -v D:\download_lib:/root/download_lib）
+###### （如果你是windows系统且安装了Linux子系统及Docker Desktop，也可以用windows目录，如: -v D:\download_lib:/root/download_lib）
 ###### --restart always，设置容器的重启策略为always，即使容器停止也会自动重启
 ###### -d 在后台运行容器并返回容器 ID
 ##### 说明：
@@ -85,7 +85,7 @@
 ###### -p 9801:9801，将本地主机的 9801 端口映射到容器内的 9801 端口
 ###### --name golocaldownload-app，将容器命名为 golocaldownload-app
 ###### -v /home/download_lib:/root/download_lib，将主机的 /home/download_lib 目录挂载到容器内的 /root/download_lib 目录
-###### （如果你是windows系统且安装了Docker Desktop及Linux子系统，也可以用windows目录，如: -v D:\download_lib:/root/download_lib）
+###### （如果你是windows系统且安装了Linux子系统及Docker Desktop，也可以用windows目录，如: -v D:\download_lib:/root/download_lib）
 ###### --restart always，设置容器的重启策略为always，即使容器停止也会自动重启
 ###### -d 在后台运行容器并返回容器 ID
 ##### 说明：
