@@ -1,10 +1,11 @@
-version: '3.8'
-
 services:
   app:
     build: .
+    image: golocaldownload:local
+    container_name: golocaldownload-app
     ports:
       - "9801:9801"
     restart: always
     volumes:
+      # 左侧是本机存放下载资源的目录，右侧固定为容器内的工作目录
       - /home/download_lib:/root/download_lib

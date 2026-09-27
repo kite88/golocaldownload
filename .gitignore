@@ -1,9 +1,26 @@
-.idea
+# 本地直接 go build 产生的可执行文件
+/golocaldownload
+/golocaldownload.exe
+
+# 交叉编译产物（build.ps1 / build.sh 输出，发布时挂到 GitHub Releases）
+/dist/
+/build/
+
+# 配置文件：仓库只提交各环境的模板，本地复制成 env.ini 覆盖即可
+/config/env.ini
+
+# 下载库（默认目录）
+/download_lib/
+
+# 编辑器 / IDE
+.idea/
+.vscode/
 .DS_Store
-build
-config/*.ini
-download_lib
-/test/*
-!test/example_test.go
+
+# 本地私有配置
 *.local.yml
 *.local.bat
+
+# test 目录只保留测试源码
+/test/*
+!/test/*_test.go
