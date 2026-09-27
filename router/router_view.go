@@ -1,13 +1,14 @@
 package router
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
-// ViewR view路由
+// viewR 页面路由。
 func viewR(r *gin.Engine) {
 	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", func() {})
+		c.HTML(http.StatusOK, "index.html", nil)
 	})
 }

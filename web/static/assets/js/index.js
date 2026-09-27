@@ -1,96 +1,120 @@
 getList()
 
+// esc 把任意文本转义后再拼进 HTML。下载库里的文件名完全由使用者控制，
+// 直接拼字符串会让 `<img src=x onerror=alert(1)>.txt` 这样的文件名变成 XSS。
+function esc(text) {
+    return String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;')
+}
+
+// attr 统一用 getAttribute 取值：jQuery 的 .data() 会把 "123"、"true" 这类值自动转成
+// 数字 / 布尔，碰上纯数字的目录名就会把路径类型改掉。
+function attr(obj, name) {
+    if (obj && obj.getAttribute) return obj.getAttribute(name)
+    return $(obj).attr(name)
+}
+
 function getList() {
-    let path = getQueryParam('s') ?? '';
-    let file = getQueryParam('f') ?? '';
-    $.get("/api/list", {"path": path}, function (res) {
-        const $nav = $('.nav')
-        $nav.attr("title", "本地服务器存放路径：" + res.absolute_dir)
-        $nav.children().remove();
-        for (const item of res.relative_dirs) {
-            for (let k in item) {
-                let name = k
-                if (k === '') name = '根目录'
-                $nav.append('<li><a data-path="' + item[k] + '" onclick="getNextList(this)">' + name + '</a></li>');
-            }
-        }
-        let list = res.list
-        let $tbody = $('tbody');
-        if (list.length === 0) {
-            $tbody.html('<tr><td style="text-align: center" colspan="4">文件夹空空如也！</td></tr>');
-            return
-        }
+    const path = getQueryParam('s') ?? ''
+    const file = getQueryParam('f') ?? ''
+    $.get('/api/list', {path: path}, function (res) {
+        renderBreadcrumb(res)
+        renderList(res, file)
+    }, 'json').fail(function (xhr) {
+        renderError((xhr.responseJSON && xhr.responseJSON.error) || '目录读取失败')
+    })
+}
 
-        if (file !== '') {
-            for (const i in res.list) {
-                if (file === list[i].name) {
-                    list[i].isFindFile = 1;
-                    if (i < 10) break
-                    let item = list.splice(i, 1)[0];// 从数组中移除该项并获得它
-                    list.unshift(item);
-                    break;
-                }
-            }
+function renderBreadcrumb(res) {
+    const $nav = $('.nav')
+    $nav.children().remove()
+    for (const item of res.relative_dirs) {
+        for (const key in item) {
+            const name = key === '' ? '根目录' : esc(key)
+            $nav.append('<li><a data-path="' + esc(item[key]) + '" onclick="getNextList(this)">' + name + '</a></li>')
         }
+    }
 
-        let tbody = '';
-        list.map(v => {
-            let styleColor = ''
-            if (v.isFindFile && v.isFindFile === 1) {
-                styleColor = 'background: #d1c2c2;color: #000000;'
-            }
-            tbody += '<tr>'
-            if (v.is_dir) {
-                tbody += '<td><a onclick="getNextList(this)" data-path="' + v.path + '"><img src="/web/static/icon/folder.png" alt="">' + v.name + '</a></td>'
-                tbody += '<td></td>'
+    // Bootstrap 5 不会自动初始化 tooltip，而且标题只在初始化时读取一次，
+    // 所以先销毁旧实例再按最新路径重建。
+    const title = '本地服务器存放路径：' + res.root_dir
+    const tip = bootstrap.Tooltip.getInstance($nav[0])
+    if (tip) tip.dispose()
+    new bootstrap.Tooltip($nav[0], {title: title, placement: 'bottom'})
+}
+
+function renderList(res, file) {
+    const $tbody = $('tbody')
+    const list = res.list
+
+    if (list.length === 0) {
+        $tbody.html('<tr><td style="text-align: center" colspan="3">文件夹空空如也！</td></tr>')
+        return
+    }
+
+    // 从检索结果跳转过来时高亮命中的文件；它如果排在很后面，再挪到最前面。
+    if (file !== '') {
+        const index = list.findIndex(item => item.name === file)
+        if (index >= 0) {
+            if (index > 10) {
+                const target = list.splice(index, 1)[0]
+                target.highlight = true
+                list.unshift(target)
             } else {
-                tbody += '<td style="' + styleColor + '"><img src="/web/static/icon/file.png" alt="">' + v.name + '<button onclick="download(this)" data-pathname_key="' + v.pathname_key + '" class="btn btn-sm btn-link">下载</button>' + '</td>'
-                tbody += '<td style="' + styleColor + '">' + v.size + ' ' + v.size_unit + '</td>'
+                list[index].highlight = true
             }
-            tbody += '<td style="' + styleColor + '">' + v.mod_time + '</td>'
-            tbody += '</tr>'
-        })
-        $tbody.html(tbody);
-    }, "json")
+        }
+    }
+
+    const rows = list.map(item => {
+        const style = item.highlight ? ' style="background: #d1c2c2;color: #000000;"' : ''
+        const name = esc(item.name)
+        if (item.is_dir) {
+            return '<tr>' +
+                '<td' + style + '><a onclick="getNextList(this)" data-path="' + esc(item.path) + '">' +
+                '<img src="/web/static/icon/folder.png" alt="">' + name + '</a></td>' +
+                '<td' + style + '></td>' +
+                '<td' + style + '>' + esc(item.mod_time) + '</td>' +
+                '</tr>'
+        }
+        return '<tr>' +
+            '<td' + style + '><img src="/web/static/icon/file.png" alt="">' + name +
+            '<button onclick="download(this)" data-pathname-key="' + esc(item.pathname_key) + '" class="btn btn-sm btn-link">下载</button></td>' +
+            '<td' + style + '>' + esc(item.size) + ' ' + esc(item.size_unit) + '</td>' +
+            '<td' + style + '>' + esc(item.mod_time) + '</td>' +
+            '</tr>'
+    })
+    $tbody.html(rows.join(''))
+}
+
+function renderError(message) {
+    $('.nav').children().remove()
+    $('tbody').html('<tr><td style="text-align: center; color: #b02a37" colspan="3">' + esc(message) + '</td></tr>')
 }
 
 function getNextList(obj) {
-    let path = $(obj).data('path')
-    changeUrlParam(path)
+    changeUrlParam(attr(obj, 'data-path'))
     getList()
 }
 
 function changeUrlParam(path = '') {
-    let url = new URL(window.location.origin);
-    url.searchParams.append('s', path);
+    const url = new URL(window.location.href)
+    url.search = ''
+    url.searchParams.set('s', path)
     window.history.replaceState(null, null, url.toString())
 }
 
 function getQueryParam(param) {
-    const match = RegExp('[?&]' + param + '=([^&]*)').exec(window.location.search);
-    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+    const match = new RegExp('[?&]' + param + '=([^&]*)').exec(window.location.search)
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '))
 }
 
 function download(obj) {
-    const pathname_key = $(obj).data('pathname_key');
-    location.href = "/api/download?data=" + pathname_key;
-}
-
-function searchOpen() {
-    let content = $.trim($('#search-input-text').val())
-    if (content === '') {
-        return alert("请输入检索信息")
-    }
-    const searchModal = new bootstrap.Modal(document.getElementById('searchModal'))
-    searchModal.show()
-    $('#search-input-text-i').val(content)
-    getSearchList(content)
-}
-
-function searchGet() {
-    let content = $.trim($('#search-input-text-i').val())
-    if (content === '') return alert("请输入检索信息")
-    getSearchList(content)
+    location.href = '/api/download?data=' + encodeURIComponent(attr(obj, 'data-pathname-key'))
 }
 
 $('#search-open-btn').on('click', function () {
@@ -101,39 +125,64 @@ $('#search-get-btn').on('click', function () {
     searchGet()
 })
 
+// 回车即检索，省得每次都得去点按钮
+$('#search-input-text').on('keydown', function (e) {
+    if (e.key === 'Enter') searchOpen()
+})
+
+$('#search-input-text-i').on('keydown', function (e) {
+    if (e.key === 'Enter') searchGet()
+})
+
+function searchOpen() {
+    const content = $.trim($('#search-input-text').val())
+    if (content === '') {
+        return alert('请输入检索信息')
+    }
+    new bootstrap.Modal(document.getElementById('searchModal')).show()
+    $('#search-input-text-i').val(content)
+    getSearchList(content)
+}
+
+function searchGet() {
+    const content = $.trim($('#search-input-text-i').val())
+    if (content === '') return alert('请输入检索信息')
+    getSearchList(content)
+}
+
 function getSearchList(keyword) {
-    const $mBody = $('#search-model-body');
-    const $resLen = $('#res-length');
-    const loading = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div><span>正在检索，请稍等...</span>'
-    $mBody.html(loading);
+    const $mBody = $('#search-model-body')
+    const $resLen = $('#res-length')
+    $mBody.html('<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div><span>正在检索，请稍等...</span>')
     $resLen.html('')
-    $.post("/api/search", {keyword: keyword}, function (res) {
-        if (res.length === 0) return $mBody.html('<h6>没有检索到相应的文件或目录</h6>');
+
+    $.post('/api/search', {keyword: keyword}, function (res) {
+        if (!Array.isArray(res) || res.length === 0) {
+            $mBody.html('<h6>没有检索到相应的文件或目录</h6>')
+            return
+        }
         $resLen.html('检索到<b style="color: red">' + res.length + '</b>条记录')
-        let html = '<ul class="list-group">'
-        let index = 0;
-        res.map(item => {
-            index++;
-            html += '<li class="list-group-item">'
-            let img = '', size = '', btn = ''
+
+        // 关键字先转义再高亮：转义后两边仍是同一段文本，普通字符串替换即可命中。
+        const kw = esc(keyword)
+        const rows = res.map((item, index) => {
+            const name = esc(item.name)
+            let img, size = '', btn
             if (item.is_dir) {
                 img = '<img src="/web/static/icon/folder.png" alt=""> '
-                size = ''
-                btn = '<a class="btn-link" href="' + window.location.origin + '?s=' + item.path + '">定位到此目录</a>'
+                btn = '<a class="btn-link" href="?s=' + encodeURIComponent(item.path) + '">定位到此目录</a>'
             } else {
                 img = '<img src="/web/static/icon/file.png" alt=""> '
-                size = '<i class="text-info">' + item.size + ' ' + item.size_unit + '</i>'
-                btn = '<button onclick="download(this)" data-pathname_key="' + item.pathname_key + '" class="btn btn-sm btn-link">下载</button>'
-                btn += '<a class="btn-link" href="' + window.location.origin + '?s=' + item.parent_path + '&f=' + item.name + '">定位到文件目录</a>'
+                size = '<i class="text-info">' + esc(item.size) + ' ' + esc(item.size_unit) + '</i>'
+                btn = '<button onclick="download(this)" data-pathname-key="' + esc(item.pathname_key) + '" class="btn btn-sm btn-link">下载</button>'
+                btn += '<a class="btn-link" href="?s=' + encodeURIComponent(item.parent_path) + '&f=' + encodeURIComponent(item.name) + '">定位到文件目录</a>'
             }
-            let resultPath = item.path.replace(/\\|\//g, function (x) {
-                return '/'
-            });
-            resultPath = resultPath.replaceAll(keyword, '<b style="color: red">' + keyword + '</b>')
-            html += index + '   ' + img + ' 根目录' + resultPath + ' ' + size + ' ' + btn
-            html += '</li>'
+            const path = esc(String(item.path).replace(/[\\/]/g, '/'))
+            const highlighted = path.split(kw).join('<b style="color: red">' + kw + '</b>')
+            return '<li class="list-group-item">' + (index + 1) + '&nbsp;&nbsp;' + img + ' 根目录' + highlighted + ' ' + size + ' ' + btn + '</li>'
         })
-        html += '</ul>'
-        $mBody.html(html);
-    }, "json")
+        $mBody.html('<ul class="list-group">' + rows.join('') + '</ul>')
+    }, 'json').fail(function (xhr) {
+        $mBody.html('<h6>检索失败：' + esc((xhr.responseJSON && xhr.responseJSON.error) || '服务异常') + '</h6>')
+    })
 }

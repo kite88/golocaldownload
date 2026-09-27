@@ -1,7 +1,16 @@
+# 构建上下文瘦身：只把源码送进镜像，避免把本地产物、下载库和 git 历史一起拷贝
 .git
-*.md
-build.bat
-build/output/
+.github
+.gitignore
+.idea
+.vscode
+dist/
+build/
 bin/
 download_lib/
 test/
+*.exe
+*.md
+LICENSE
+docker-compose.yml
+.gitattributes
