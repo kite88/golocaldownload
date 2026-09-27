@@ -56,8 +56,11 @@ linux/ppc64le linux/s390x linux/riscv64 linux/loong64
 darwin/amd64 darwin/arm64
 freebsd/amd64 freebsd/arm64'
 
-# Version stamped into the binary; falls back to "dev" outside a git checkout.
-version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Version stamped into the binary. GLD_VERSION wins when set - the release
+# workflow passes the tag name, so a shallow checkout without tags cannot
+# silently degrade the published binaries to "dev". Otherwise fall back to
+# git describe, then to "dev" outside a git checkout.
+version=${GLD_VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}
 
 host_os=$(go env GOOS)
 host_arch=$(go env GOARCH)
