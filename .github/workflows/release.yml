@@ -22,6 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 取全量历史与 tag：否则浅克隆里没有标签，git describe 取不到版本号
+          fetch-depth: 0
 
       - name: 安装 Go
         uses: actions/setup-go@v5
@@ -35,6 +38,9 @@ jobs:
         run: go test ./...
 
       - name: 交叉编译全部平台
+        env:
+          # 直接把标签名当版本号注入，避免依赖 git describe
+          GLD_VERSION: ${{ github.ref_name }}
         run: ./build.sh
 
       - name: 校验产物

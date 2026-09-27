@@ -49,14 +49,18 @@ $targets = @(
     'freebsd/amd64', 'freebsd/arm64'
 )
 
-# Version stamped into the binary via -X main.version; "dev" outside a checkout.
-$version = 'dev'
-try {
-    $gitVersion = & git describe --tags --always --dirty 2>$null
-    if ($LASTEXITCODE -eq 0 -and $gitVersion) { $version = "$gitVersion".Trim() }
-}
-catch {
-    Write-Verbose "git unavailable, using version $version"
+# Version stamped into the binary via -X main.version. The GLD_VERSION
+# environment variable wins when set; otherwise use git describe, then "dev".
+$version = $env:GLD_VERSION
+if (-not $version) {
+    $version = 'dev'
+    try {
+        $gitVersion = & git describe --tags --always --dirty 2>$null
+        if ($LASTEXITCODE -eq 0 -and $gitVersion) { $version = "$gitVersion".Trim() }
+    }
+    catch {
+        Write-Verbose "git unavailable, using version $version"
+    }
 }
 
 Push-Location $PSScriptRoot
