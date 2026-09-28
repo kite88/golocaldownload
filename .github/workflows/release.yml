@@ -160,16 +160,38 @@ jobs:
           username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
 
-      # 预发布标签（含 -，如 26.09.28.01-rc1）只打版本号，不覆盖 latest
-      - name: 生成镜像标签
+      # metadata-action 只负责生成 OCI 标签（来源、描述、许可证等）
+      - name: 生成 OCI 标签
         if: steps.creds.outputs.enabled == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ steps.creds.outputs.images }}
+          # 关掉自动补 latest 的行为，latest 由下一步显式决定
+          flavor: |
+            latest=false
           tags: |
             type=ref,event=tag
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      # 推送标签自己拼：每个仓库一份版本号标签，latest 只在正式标签（不含 -）时才加。
+      # 不用 metadata-action 的 enable 表达式，是因为实测预发布标签下 latest 仍会被加上
+      # （运行日志里 image.name 明确带着 latest），改成显式逻辑后行为一眼可见、可本地验证。
+      - name: 计算推送标签
+        if: steps.creds.outputs.enabled == 'true'
+        id: push-tags
+        env:
+          IMAGES: ${{ steps.creds.outputs.images }}
+        run: |
+          tags=""
+          for repo in $(printf '%s\n' "$IMAGES"); do
+            tags="${tags:+$tags,}${repo}:${GITHUB_REF_NAME}"
+            case "${GITHUB_REF_NAME}" in
+              *-*) ;;                                  # 预发布标签：不动 latest
+              *) tags="$tags,${repo}:latest" ;;
+            esac
+          done
+          echo "将推送: $tags"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - name: 构建并推送（linux/amd64 + linux/arm64）
         if: steps.creds.outputs.enabled == 'true'
@@ -185,7 +207,7 @@ jobs:
           # 若哪天只想给 Docker Hub 带证明清单，需拆成两次构建分别推送。
           provenance: false
           sbom: false
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.push-tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GLD_VERSION=${{ github.ref_name }}

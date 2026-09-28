@@ -3,8 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>本地文件下载服务</title>
     <link rel="icon" type="image/x-icon" href="/web/static/favicon.ico">
+    <script>
+        // 主题三态：light / system / dark，存在 localStorage 的 gld-theme 里。
+        // 这段必须放在样式表之前、且在首帧之前执行，否则暗色用户会先看到一瞬白屏（FOUC）。
+        (function () {
+            var mode = 'system';
+            try {
+                mode = localStorage.getItem('gld-theme') || 'system';
+            } catch (e) {
+                // 隐私模式等场景下 localStorage 不可用，按跟随系统处理
+            }
+            var dark = mode === 'dark' ||
+                (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+        })();
+    </script>
     <link rel="stylesheet" href="/web/static/bootstrap/v5.3.5/bootstrap.min.css">
     <style>
         a {
@@ -38,9 +54,46 @@
         }
 
         .nav > li + li:before {
-            color: #CCCCCC;
+            color: var(--bs-secondary-color);
             content: "/ ";
             padding: 0 5px;
+        }
+
+        .cell-center {
+            text-align: center;
+        }
+
+        /* 命中行底色 / 关键字高亮 / 错误提示：这三个颜色语义特殊（要求足够的对比度），
+           所以各自给出浅色与深色两套取值。 */
+        .hl {
+            background: #d1c2c2;
+            color: #000000;
+        }
+
+        .kw {
+            color: #d63384;
+            font-weight: bold;
+        }
+
+        .err {
+            color: #b02a37;
+        }
+
+        [data-bs-theme="dark"] .hl {
+            background: #4b5563;
+            color: #f8f9fa;
+        }
+
+        [data-bs-theme="dark"] .kw {
+            color: #ff8fb1;
+        }
+
+        [data-bs-theme="dark"] .err {
+            color: #ff9aa6;
+        }
+
+        .theme-switch .btn {
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -52,11 +105,25 @@
             <ul class="nav"></ul>
         </div>
         <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="input-group input-group-sm">
-                <input id="search-input-text" type="text" class="form-control" placeholder="输入检索信息"
-                       aria-label="输入检索信息" aria-describedby="basic-addon2">
-                <div class="input-group-append">
-                    <button id="search-open-btn" class="btn btn-outline-secondary" type="button">全局检索</button>
+            <div class="d-flex align-items-center justify-content-lg-end gap-2">
+                <div class="input-group input-group-sm">
+                    <input id="search-input-text" type="text" class="form-control" placeholder="输入检索信息"
+                           aria-label="输入检索信息" aria-describedby="basic-addon2">
+                    <div class="input-group-append">
+                        <button id="search-open-btn" class="btn btn-outline-secondary" type="button">全局检索</button>
+                    </div>
+                </div>
+                <!-- 主题切换：亮色 / 跟随系统 / 暗色，选择记在浏览器本地 -->
+                <div class="dropdown theme-switch">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="theme-toggle"
+                            data-bs-toggle="dropdown" aria-expanded="false" title="切换主题">
+                        主题：<span id="theme-label">跟随系统</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="theme-toggle">
+                        <li><button class="dropdown-item" type="button" data-theme="light">亮色</button></li>
+                        <li><button class="dropdown-item" type="button" data-theme="system">跟随系统</button></li>
+                        <li><button class="dropdown-item" type="button" data-theme="dark">暗色</button></li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -99,5 +166,3 @@
 <script src="/web/static/jquery/jquery-3.7.1.min.js"></script>
 <script src="/web/static/assets/js/index.js"></script>
 </html>
-
-

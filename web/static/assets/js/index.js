@@ -1,3 +1,7 @@
+const THEME_KEY = 'gld-theme'
+const THEME_LABELS = {light: '亮色', system: '跟随系统', dark: '暗色'}
+
+initTheme()
 getList()
 
 // esc 把任意文本转义后再拼进 HTML。下载库里的文件名完全由使用者控制，
@@ -17,6 +21,57 @@ function attr(obj, name) {
     if (obj && obj.getAttribute) return obj.getAttribute(name)
     return $(obj).attr(name)
 }
+
+// ---------------------------------------------------------------- 主题（亮色 / 跟随系统 / 暗色）
+
+// 读取保存的主题偏好；localStorage 在隐私模式下可能不可用，读不到就当「跟随系统」。
+function getTheme() {
+    try {
+        const saved = localStorage.getItem(THEME_KEY)
+        if (saved === 'light' || saved === 'dark' || saved === 'system') return saved
+    } catch (e) {
+        // 忽略，按跟随系统处理
+    }
+    return 'system'
+}
+
+function isDarkTheme(mode) {
+    if (mode === 'dark') return true
+    if (mode === 'light') return false
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+// 把主题写到 <html data-bs-theme>，Bootstrap 5.3 的所有组件颜色都跟着它走。
+function applyTheme(mode) {
+    document.documentElement.setAttribute('data-bs-theme', isDarkTheme(mode) ? 'dark' : 'light')
+    $('#theme-label').text(THEME_LABELS[mode])
+    $('.dropdown-item[data-theme]').each(function () {
+        $(this).toggleClass('active', attr(this, 'data-theme') === mode)
+    })
+}
+
+function setTheme(mode) {
+    try {
+        localStorage.setItem(THEME_KEY, mode)
+    } catch (e) {
+        // 存不上不影响本次生效
+    }
+    applyTheme(mode)
+}
+
+function initTheme() {
+    // 首帧的主题已由 index.html 里的内联脚本设置好，这里只同步按钮状态与监听。
+    applyTheme(getTheme())
+    $('.dropdown-item[data-theme]').on('click', function () {
+        setTheme(attr(this, 'data-theme'))
+    })
+    // 「跟随系统」时，系统切换深色要实时生效
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+        if (getTheme() === 'system') applyTheme('system')
+    })
+}
+
+// ---------------------------------------------------------------- 目录列表
 
 function getList() {
     const path = getQueryParam('s') ?? ''
@@ -52,7 +107,7 @@ function renderList(res, file) {
     const list = res.list
 
     if (list.length === 0) {
-        $tbody.html('<tr><td style="text-align: center" colspan="3">文件夹空空如也！</td></tr>')
+        $tbody.html('<tr><td class="cell-center" colspan="3">文件夹空空如也！</td></tr>')
         return
     }
 
@@ -71,21 +126,21 @@ function renderList(res, file) {
     }
 
     const rows = list.map(item => {
-        const style = item.highlight ? ' style="background: #d1c2c2;color: #000000;"' : ''
+        const cls = item.highlight ? ' class="hl"' : ''
         const name = esc(item.name)
         if (item.is_dir) {
             return '<tr>' +
-                '<td' + style + '><a onclick="getNextList(this)" data-path="' + esc(item.path) + '">' +
+                '<td' + cls + '><a onclick="getNextList(this)" data-path="' + esc(item.path) + '">' +
                 '<img src="/web/static/icon/folder.png" alt="">' + name + '</a></td>' +
-                '<td' + style + '></td>' +
-                '<td' + style + '>' + esc(item.mod_time) + '</td>' +
+                '<td' + cls + '></td>' +
+                '<td' + cls + '>' + esc(item.mod_time) + '</td>' +
                 '</tr>'
         }
         return '<tr>' +
-            '<td' + style + '><img src="/web/static/icon/file.png" alt="">' + name +
+            '<td' + cls + '><img src="/web/static/icon/file.png" alt="">' + name +
             '<button onclick="download(this)" data-pathname-key="' + esc(item.pathname_key) + '" class="btn btn-sm btn-link">下载</button></td>' +
-            '<td' + style + '>' + esc(item.size) + ' ' + esc(item.size_unit) + '</td>' +
-            '<td' + style + '>' + esc(item.mod_time) + '</td>' +
+            '<td' + cls + '>' + esc(item.size) + ' ' + esc(item.size_unit) + '</td>' +
+            '<td' + cls + '>' + esc(item.mod_time) + '</td>' +
             '</tr>'
     })
     $tbody.html(rows.join(''))
@@ -93,7 +148,7 @@ function renderList(res, file) {
 
 function renderError(message) {
     $('.nav').children().remove()
-    $('tbody').html('<tr><td style="text-align: center; color: #b02a37" colspan="3">' + esc(message) + '</td></tr>')
+    $('tbody').html('<tr><td class="cell-center err" colspan="3">' + esc(message) + '</td></tr>')
 }
 
 function getNextList(obj) {
@@ -116,6 +171,8 @@ function getQueryParam(param) {
 function download(obj) {
     location.href = '/api/download?data=' + encodeURIComponent(attr(obj, 'data-pathname-key'))
 }
+
+// ---------------------------------------------------------------- 检索
 
 $('#search-open-btn').on('click', function () {
     searchOpen()
@@ -161,7 +218,7 @@ function getSearchList(keyword) {
             $mBody.html('<h6>没有检索到相应的文件或目录</h6>')
             return
         }
-        $resLen.html('检索到<b style="color: red">' + res.length + '</b>条记录')
+        $resLen.html('检索到<b class="kw">' + res.length + '</b>条记录')
 
         // 关键字先转义再高亮：转义后两边仍是同一段文本，普通字符串替换即可命中。
         const kw = esc(keyword)
@@ -178,7 +235,7 @@ function getSearchList(keyword) {
                 btn += '<a class="btn-link" href="?s=' + encodeURIComponent(item.parent_path) + '&f=' + encodeURIComponent(item.name) + '">定位到文件目录</a>'
             }
             const path = esc(String(item.path).replace(/[\\/]/g, '/'))
-            const highlighted = path.split(kw).join('<b style="color: red">' + kw + '</b>')
+            const highlighted = path.split(kw).join('<b class="kw">' + kw + '</b>')
             return '<li class="list-group-item">' + (index + 1) + '&nbsp;&nbsp;' + img + ' 根目录' + highlighted + ' ' + size + ' ' + btn + '</li>'
         })
         $mBody.html('<ul class="list-group">' + rows.join('') + '</ul>')
