@@ -10,6 +10,8 @@ import (
 // restore 把全局配置还原成自动发现的默认值，避免用例之间互相污染。
 func restore(t *testing.T) {
 	t.Helper()
+	// 屏蔽外部环境：本机若导出过 GLD_CONFIG，会让「自动发现」类用例读错文件。
+	t.Setenv(PathKey, "")
 	t.Cleanup(func() {
 		if err := Init(""); err != nil {
 			t.Fatalf("还原配置失败: %v", err)
@@ -80,6 +82,34 @@ func TestInitMissingExplicitFile(t *testing.T) {
 	restore(t)
 	if err := Init(filepath.Join(t.TempDir(), "nope.ini")); err == nil {
 		t.Fatal("指定了不存在的配置文件，应当返回错误")
+	}
+}
+
+// TestInitWithEnvPath 验证 GLD_CONFIG 与 -config 等价（配置来源里的第 1 条）。
+func TestInitWithEnvPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "from-env.ini")
+	if err := os.WriteFile(path, []byte("env_mode = test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	restore(t)
+	t.Setenv(PathKey, path)
+
+	if err := Init(""); err != nil {
+		t.Fatalf("GLD_CONFIG 指定的配置没被加载: %v", err)
+	}
+	if got := EnvMode(); got != "test" {
+		t.Errorf("GLD_CONFIG 生效后 EnvMode() = %q, want test", got)
+	}
+}
+
+// TestInitWithMissingEnvPath 验证 GLD_CONFIG 指向不存在的文件时直接报错，
+// 而不是悄悄回落到内嵌模板——否则配置名写错了很难发现。
+func TestInitWithMissingEnvPath(t *testing.T) {
+	restore(t)
+	t.Setenv(PathKey, filepath.Join(t.TempDir(), "nope.ini"))
+
+	if err := Init(""); err == nil {
+		t.Fatal("GLD_CONFIG 指向不存在的文件，应当返回错误")
 	}
 }
 

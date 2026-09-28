@@ -20,7 +20,12 @@
   （图标取自 Material Icon Theme，MIT，见 `web/static/icon/material/LICENSE.txt`），未知扩展名回落到通用文档图标。
 - **全局检索**：按文件名做忽略大小写的子串匹配，可一键定位到文件所在目录。
 - **文件下载**：中文、空格等非 ASCII 文件名按 RFC 5987 编码，浏览器不会存成乱码。
+- **一键复制地址**：文件复制出来的是可直接使用的绝对下载地址（浏览器、`wget`、下载工具都能直接吃），
+  目录复制的是定位到该目录的页面地址（按当前访问方式生成，本机或局域网 IP），标题下方的「复制路径」
+  复制的是下载库自身的绝对路径；复制后链接会短暂显示「已复制」。
 - **主题切换**：亮色 / 跟随系统 / 暗色三态，选择记在浏览器本地；首帧就应用主题，暗色下不会闪白屏。
+- **列表 / 网格两种视图**：列表适合看大小与时间，网格适合按图标认内容（图片、压缩包等）；
+  右上角一键切换，选择同样记在浏览器本地。两套视图共用同一份数据，切换不会重新请求接口。
 - **越界防护**：列表、检索、下载都只允许访问下载库之内的路径，`../` 之类的目录穿越会被直接拒绝。
 - **单文件交付**：页面模板、静态资源、配置模板全部内嵌，运行时不依赖任何外部文件。
 - **优雅退出**：`Ctrl+C` 或 `SIGTERM` 会等待在途下载收尾后再退出，不会掐断大文件传输。
@@ -141,7 +146,7 @@ dist/
 
 ### 发版
 
-推 `v*` 或日期式标签（如 `26.09.28.01`）即可，workflow（`.github/workflows/release.yml`）
+推 `v*` 或日期式标签（如 `26.09.28.03`，沿用 `YY.MM.DD.NN` 习惯）即可，workflow（`.github/workflows/release.yml`）
 会自动做完三件事：
 
 1. **检查与测试**：`go vet ./...`、`go test ./...`；
@@ -149,10 +154,10 @@ dist/
 3. **推镜像**：构建 linux/amd64 + linux/arm64 多架构镜像，推到 Docker Hub 与阿里云容器镜像服务。
 
 ```bash
-git tag 26.09.28.01 && git push origin 26.09.28.01
+git tag 26.09.28.03 && git push origin 26.09.28.03
 ```
 
-任一步失败都不会发版；标签名含 `-`（如 `26.09.28.01-rc1`）会被标记为 prerelease，并且
+任一步失败都不会发版；标签名含 `-`（如 `26.09.28.03-rc1`）会被标记为 prerelease，并且
 **不会覆盖镜像的 `latest` 标签**。
 
 #### 镜像推送需要配置 4 个 Secrets
@@ -195,7 +200,7 @@ Docker 各方式里的 `-v <宿主机目录>:/root/download_lib`，**右边必�
 | --- | --- | --- |
 | Linux | `-v /home/download_lib:/root/download_lib` | `/home/download_lib` |
 | Windows + Docker Desktop | `-v D:/download_lib:/root/download_lib` | `D:\download_lib`（资源管理器里可见） |
-| macOS + Docker Desktop | `-v /Users/你/download_lib:/root/download_lib` | 该目录 |
+| macOS + Docker Desktop | `-v /Users/你的用户名/download_lib:/root/download_lib` | 该目录 |
 
 Windows 上另外两个坑：
 
@@ -214,14 +219,90 @@ dir D:\download_lib                             # Windows 宿主机上看到的�
 
 ### 方式一：本地源码部署、二次开发
 
+要改代码、想跑最新版，或者单纯不想用容器时选这个。前置条件只有 **Go 1.23 及以上**。
+
+**1. 克隆代码**
+
 ```bash
-git clone https://gitcode.com/kite88/golocaldownload.git
+git clone https://github.com/kite88/golocaldownload.git
 cd golocaldownload
-go run .
 ```
 
-需要自定义配置时，把 `config/` 下的某个 `env.ini.<环境>` 复制成 `config/env.ini`
-（或者直接 `go run . -config config/env.ini.local`），不必改动模板文件本身。
+> 上面仓库表里的 GitCode / Gitee 是镜像站，靠平台侧的 Pull 镜像同步、可能滞后；
+> 要最新代码请以 GitHub 为准（默认分支 `main`）。
+
+**2. 编译**
+
+```bash
+go build -o golocaldownload .          # Linux / macOS
+```
+
+```powershell
+go build -o golocaldownload.exe .      # Windows（PowerShell）
+```
+
+产物是**单个可执行文件**：页面模板、静态资源、配置模板都已内嵌，拷到同架构的机器上就能直接跑。
+默认不带版本号（`-version` 显示 `dev`），想带上就自己加参数：
+
+```bash
+go build -trimpath -ldflags "-X main.version=26.09.28.02" -o golocaldownload .
+```
+
+**3. 启动**
+
+```bash
+./golocaldownload                      # Linux / macOS
+```
+
+```powershell
+.\golocaldownload.exe                  # Windows
+```
+
+开发时更省事的是 `go run .`（编译到临时目录后立刻运行，不产文件，改完代码重跑即可）。
+默认监听 `9801`，下载库是**运行目录下的 `download_lib/`**（不存在会自动创建）：把文件丢进去、
+刷新页面就能看到。启动日志会打印版本、配置来源、下载库目录与实际可访问地址（本机 + 局域网）；
+`Ctrl+C` 会等在途下载收尾后再退出。
+
+**4. 改配置**
+
+四种做法，挑顺手的（优先级见上面「配置来源」）：
+
+- **① 复制模板**：复制成 `config/env.ini`，该文件已被 `.gitignore` 忽略，改了不会污染仓库；
+- **② `-config` 指定**：直接指向模板文件，仓库里一个文件都不动；
+- **③ `GLD_ENV` 选内嵌模板**：取值为 `debug` / `local` / `release` / `test`；
+- **④ `GLD_CONFIG` 环境变量**：与 `-config` 等价，适合容器、systemd 这类传不了命令行参数的场景。
+
+**Linux / macOS**
+
+```bash
+cp config/env.ini.local config/env.ini    # ①
+go run . -config config/env.ini.local     # ②
+GLD_ENV=local go run .                    # ③
+
+GLD_CONFIG=/etc/golocaldownload/env.ini go run .   # ④
+```
+
+**Windows（PowerShell）**
+
+```powershell
+Copy-Item config\env.ini.local config\env.ini      # ①
+go run . -config config\env.ini.local              # ②
+$env:GLD_ENV = 'local'; go run .                   # ③
+
+$env:GLD_CONFIG = 'D:\gld\env.ini'; go run .       # ④
+```
+
+> 已经编译过就不必用 `go run .`，换成 `./golocaldownload`（Windows 为 `.\golocaldownload.exe`）即可；
+> 用 `cmd.exe` 时环境变量那两条要写成 `set GLD_ENV=local`，并且必须在**同一个窗口**里设置后再执行命令。
+
+**5. 改代码后注意**
+
+- `web/` 下的页面与静态资源是 `//go:embed` 打进二进制的，**改完必须重新 `go build` 或重启
+  `go run .`**，只刷新浏览器不会生效；
+- 改完请跑一遍 `go test ./...`（`test/router_test.go` 里的越界用例是安全回归测试），
+  详见下面的「开发」小节。
+
+要一次性拿到全部平台的压缩包，用 `./build.sh` 或 `.\build.ps1`（见上面「交叉编译」）。
 
 ### 方式二：本地主机运行可执行文件
 
@@ -231,24 +312,42 @@ go run .
 
 ### 方式三：Docker 部署（本地构建镜像）
 
+第一步，构建镜像（三个平台同一条命令）：
+
 ```bash
 docker build -t golocaldownload:latest .
+```
 
-# Linux 宿主机
+第二步，按你的宿主机系统选一条运行命令。**三条命令只有 `-v` 左边那段（宿主机目录）不同**，右边必须固定写 `/root/download_lib`：
+
+**Linux**
+
+```bash
 docker run -p 9801:9801 -v /home/download_lib:/root/download_lib --restart always --name golocaldownload-app -d golocaldownload:latest
+```
 
-# Windows / macOS 宿主机：把 -v 左边换成自己的目录
+**Windows（Docker Desktop）**
+
+```powershell
 docker run -p 9801:9801 -v D:/download_lib:/root/download_lib --restart always --name golocaldownload-app -d golocaldownload:latest
 ```
 
+**macOS（Docker Desktop）**
+
+```bash
+docker run -p 9801:9801 -v /Users/你的用户名/download_lib:/root/download_lib --restart always --name golocaldownload-app -d golocaldownload:latest
+```
+
+参数说明：
+
 - `-p 9801:9801`：宿主机 9801 端口 → 容器 9801 端口；
-- `-v <宿主机目录>:/root/download_lib`：下载库挂载，写法见上面「挂载路径」小节；
+- `-v <宿主机目录>:/root/download_lib`：下载库挂载，细节与两个 Windows 坑见上面「挂载路径」小节；
 - `--restart always`：容器退出后自动重启；`-d`：后台运行。
 
 构建时可以顺带注入版本号（只影响容器内 `golocaldownload -version` 的输出）：
 
 ```bash
-docker build --build-arg GLD_VERSION=26.09.28.00 -t golocaldownload:latest .
+docker build --build-arg GLD_VERSION=26.09.28.02 -t golocaldownload:latest .
 ```
 
 ### 方式四：docker-compose 部署
@@ -276,7 +375,7 @@ docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/downl
 
 > Windows / macOS 宿主机把 `-v` 左边换成自己的目录（见上面「挂载路径」小节）。
 >
-> 两个仓库都由发版流程自动推送两份标签：`latest` 与对应版本号（如 `26.09.28.00`），镜像同时覆盖
+> 两个仓库都由发版流程自动推送两份标签：`latest` 与对应版本号（如 `26.09.28.02`），镜像同时覆盖
 > linux/amd64 与 linux/arm64，ARM 服务器与 Apple Silicon 可直接跑。需要固定版本、避免 `latest`
 > 随发版漂移时，把命令里的 `:latest` 换成具体版本号即可。
 

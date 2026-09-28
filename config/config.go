@@ -56,8 +56,12 @@ func init() {
 }
 
 // Init 加载配置。explicitPath 非空时只加载该文件，失败直接返回错误；
-// 为空时按包注释里的优先级自动查找，正常情况下不会失败。
+// 为空时先看 GLD_CONFIG，再按包注释里的优先级自动查找，正常情况下不会失败。
 func Init(explicitPath string) error {
+	if explicitPath == "" {
+		// GLD_CONFIG 与 -config 等价，方便容器 / systemd 这类不好传命令行参数的场景。
+		explicitPath = strings.TrimSpace(os.Getenv(PathKey))
+	}
 	if explicitPath != "" {
 		cfg, err := loadFile(explicitPath)
 		if err != nil {
