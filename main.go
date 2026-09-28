@@ -47,7 +47,7 @@ func main() {
 }
 
 func run() error {
-	configPath := flag.String("config", "", "外部配置文件路径（ini）；留空时依次查找 ./env.ini、./config/env.ini 与内嵌模板")
+	configPath := flag.String("config", "", "外部配置文件路径（ini），也可用 GLD_CONFIG 环境变量指定；留空时依次查找 ./env.ini、./config/env.ini 与内嵌模板")
 	showVersion := flag.Bool("version", false, "打印版本号后退出")
 	flag.Parse()
 
