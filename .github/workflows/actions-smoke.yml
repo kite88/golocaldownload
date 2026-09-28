@@ -1,0 +1,74 @@
+name: actions-smoke
+
+# 临时工作流：升级 action 大版本后，用它把 release.yml 里用到的那套 action 链路跑一遍。
+# 与正式发版的区别只有一点——最后一步是 push: false + output: type=cacheonly，
+# 即「只构建、不推送」，所以不会产生任何 Release 或镜像标签。
+#
+# 手动触发：gh workflow run actions-smoke.yml
+# 验证完即可删除本文件。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: 静态检查与单元测试
+        run: |
+          go vet ./...
+          go test ./...
+
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: 登录 Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 登录阿里云容器镜像服务
+        uses: docker/login-action@v4
+        with:
+          registry: registry.cn-shenzhen.aliyuncs.com
+          username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+
+      - name: 生成 OCI 标签
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/golocaldownload
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=smoke
+
+      - name: 构建（不推送）
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          output: type=cacheonly
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GLD_VERSION=smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

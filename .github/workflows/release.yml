@@ -31,13 +31,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # 取全量历史与 tag：否则浅克隆里没有标签，git describe 取不到版本号
           fetch-depth: 0
 
       - name: 安装 Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -92,7 +92,7 @@ jobs:
       ALIYUN_REGISTRY: registry.cn-shenzhen.aliyuncs.com
       ALIYUN_IMAGE: registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 检查镜像仓库凭据
         id: creds
@@ -139,22 +139,22 @@ jobs:
 
       - name: 准备 QEMU（构建非本机架构需要）
         if: steps.creds.outputs.enabled == 'true'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: 准备 Buildx
         if: steps.creds.outputs.enabled == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: 登录 Docker Hub
         if: steps.creds.outputs.dockerhub == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: 登录阿里云容器镜像服务
         if: steps.creds.outputs.aliyun == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.ALIYUN_REGISTRY }}
           username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
@@ -164,7 +164,7 @@ jobs:
       - name: 生成 OCI 标签
         if: steps.creds.outputs.enabled == 'true'
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.creds.outputs.images }}
           # 关掉自动补 latest 的行为，latest 由下一步显式决定
@@ -195,7 +195,7 @@ jobs:
 
       - name: 构建并推送（linux/amd64 + linux/arm64）
         if: steps.creds.outputs.enabled == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
