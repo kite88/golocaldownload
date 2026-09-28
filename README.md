@@ -22,7 +22,7 @@
 - **文件下载**：中文、空格等非 ASCII 文件名按 RFC 5987 编码，浏览器不会存成乱码。
 - **一键复制地址**：文件复制出来的是可直接使用的绝对下载地址（浏览器、`wget`、下载工具都能直接吃），
   目录复制的是定位到该目录的页面地址（按当前访问方式生成，本机或局域网 IP），标题下方的「复制路径」
-  复制的是下载库自身的绝对路径；复制后链接会短暂显示「已复制」。
+  复制的是下载库自身的绝对路径（容器里是宿主机上的映射目录）；复制后链接会短暂显示「已复制」。
 - **主题切换**：亮色 / 跟随系统 / 暗色三态，选择记在浏览器本地；首帧就应用主题，暗色下不会闪白屏。
 - **列表 / 网格两种视图**：列表适合看大小与时间，网格适合按图标认内容（图片、压缩包等）；
   右上角一键切换，选择同样记在浏览器本地。两套视图共用同一份数据，切换不会重新请求接口。
@@ -88,6 +88,7 @@ go build -o golocaldownload . && ./golocaldownload
 | --- | --- | --- |
 | `env_mode` | `release` | 运行模式：`debug` / `release` / `test`，取值非法时按 `release` 处理 |
 | `download_lib_path` | `download_lib` | 下载库目录；支持相对与绝对路径，多级目录会自动创建；留空表示用程序当前工作目录 |
+| `display_lib_path` | 空 | 页面上展示的下载库路径；留空时自动识别容器映射的宿主机目录（见「挂载路径」小节），识别不到就用真实路径 |
 | `server.protocol` | `http` | 仅用于启动日志里拼出访问地址，不改变实际监听方式 |
 | `server.http_port` | `9801` | 监听端口 |
 
@@ -209,6 +210,17 @@ Windows 上另外两个坑：
   时还会一起丢掉。要放 Windows 目录就用带盘符的路径，**正斜杠最稳**。
 - **Git Bash 会改写路径**。MSYS 会把 `/home/download_lib` 转成 `<Git 安装目录>/home/download_lib`，
   需要写成 `//home/download_lib` 或加 `MSYS_NO_PATHCONV=1`；直接用 `D:/download_lib` 也能绕开。
+
+页面上的「下载库路径」显示的是 **宿主机上的目录**，不是容器内路径：程序启动时读
+`/proc/self/mountinfo`，按「挂载点是下载库前缀且最长」找到那条 bind mount 记录，用它的源目录
+当展示路径（Windows 的 Docker Desktop 还会从超级选项 `path=C:\` 里把盘符补回来）。用命名卷、
+或实在识别不出来时回落显示容器内真实路径；想固定成某个值就配 `display_lib_path`。
+启动日志里两者都会打印，便于对照：
+
+```text
+下载库目录: /root/download_lib
+宿主机目录: D:\download_lib
+```
 
 目录不存在会自动创建（Docker 建宿主机目录，程序启动时 `MkdirAll` 兜底）。挂载是否生效一验便知：
 
@@ -439,8 +451,13 @@ docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/downl
 - **优雅退出**：`signal.NotifyContext` + `http.Server.Shutdown`，只限制读请求头超时，
   下载大文件时不会被写超时掐断。
 - **根目录显式注入**：不再用 `GLD_download_lib_path` 环境变量在包之间隐式传递，
-  `handle.New(root)` 让接口天然可测——`test/` 里用 `httptest` 在进程内跑真实路由，
+  `handle.New(root, displayRoot)` 让接口天然可测——`test/` 里用 `httptest` 在进程内跑真实路由，
   覆盖了列表、检索、下载、越界拒绝与 404 等场景。
+- **容器里显示宿主机目录**：容器内看不到宿主机的目录结构，但每次 bind mount 都会在
+  `/proc/self/mountinfo` 里留一行，第 4 个字段就是宿主机侧的路径。于是按「挂载点是下载库前缀
+  且最长」取那条记录，再把库相对挂载点的部分拼上去（Windows 的 Docker Desktop 走 9p/drvfs，
+  该字段没有盘符，需从超级选项 `aname=drvfs;path=C:\` 里补回）。命名卷（挂载根为 `/`）、
+  非容器环境等推断不出来时，回落显示容器内真实路径，或用 `display_lib_path` 直接指定。
 - **发版与镜像解耦、且可重跑**：镜像推送是独立 job，跑在 Release 之后，推镜像失败不影响已发好的
   Release；两个仓库的凭据各自独立开关，缺一组只跳过一组。Release 创建做成了幂等（已存在则
   `gh release upload --clobber` 覆盖同名产物），否则镜像失败后重跑会先卡在「Release 已存在」上。

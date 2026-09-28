@@ -32,16 +32,29 @@ const maxSearchResults = 500
 // Handler 持有下载库根目录，所有接口都只在该目录内工作。
 // 根目录改为显式注入，不再通过环境变量 GLD_download_lib_path 在包里隐式传递。
 type Handler struct {
-	root string
+	root    string
+	display string
 }
 
-// New 创建 Handler，root 为下载库根目录（推荐传绝对路径）。
-func New(root string) *Handler {
-	return &Handler{root: filepath.Clean(root)}
+// New 创建 Handler。root 是下载库根目录（推荐绝对路径）；displayRoot 是展示用的路径，
+// 留空表示与 root 相同。
+//
+// 为什么要分开：容器里拿到的永远是容器内路径（如 /root/download_lib），而用户真正需要知道的是
+// 宿主机上被映射的那个目录（如 D:\download_lib）——「文件该往哪儿放」才是页面上要回答的问题。
+// 推断逻辑见 common.HostPath，猜不出来时传空串即可，展示回落为 root。
+func New(root, displayRoot string) *Handler {
+	root = filepath.Clean(root)
+	if displayRoot = strings.TrimSpace(displayRoot); displayRoot == "" {
+		displayRoot = root
+	}
+	return &Handler{root: root, display: displayRoot}
 }
 
-// Root 返回下载库根目录。
+// Root 返回下载库根目录（容器内的真实路径）。
 func (h *Handler) Root() string { return h.root }
+
+// DisplayRoot 返回展示给前端的下载库路径（容器外看就是宿主机上的映射目录）。
+func (h *Handler) DisplayRoot() string { return h.display }
 
 // OutEntry 是目录列表接口的响应体。
 type OutEntry struct {
@@ -90,7 +103,8 @@ func (h *Handler) List(ctx *gin.Context) {
 	sortEntries(list)
 
 	ctx.JSON(http.StatusOK, OutEntry{
-		RootDir:      h.root,
+		// 展示宿主机上的映射目录（容器场景）；非容器环境两者相同
+		RootDir:      h.display,
 		AbsoluteDir:  dir,
 		RelativeDirs: common.StrPathToStrPaths(display, PathSep),
 		List:         list,

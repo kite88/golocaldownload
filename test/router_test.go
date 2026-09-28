@@ -42,7 +42,7 @@ func newFixture(t *testing.T) *fixture {
 	writeFile(t, secret, "top secret")
 
 	// 模板与静态资源取自真实文件：测试目录的上一层就是项目根目录。
-	engine, err := router.R(gin.TestMode, os.DirFS(".."), os.DirFS(".."), handle.New(root))
+	engine, err := router.R(gin.TestMode, os.DirFS(".."), os.DirFS(".."), handle.New(root, ""))
 	if err != nil {
 		t.Fatalf("创建路由失败: %v", err)
 	}
