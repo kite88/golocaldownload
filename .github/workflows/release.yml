@@ -8,13 +8,15 @@ name: release
 # 流程先跑 go vet 与单元测试，再用 sha256sum -c 自检产物，任一步失败都不会发版。
 # 带后缀的标签（如 25.07.07.01-rc1）会被标记为 prerelease，不会占用 Latest。
 #
-# Release 创建成功后，还会构建并推送多架构 Docker 镜像到 Docker Hub。
-# 需要在仓库 Settings → Secrets and variables → Actions 里配置：
+# Release 创建成功后，还会构建并推送多架构 Docker 镜像到 Docker Hub 与阿里云容器镜像服务。
+# 需要在仓库 Settings → Secrets and variables → Actions 里按需配置（都配则双推，只配一组也行）：
 #
-#   DOCKERHUB_USERNAME  Docker Hub 用户名
-#   DOCKERHUB_TOKEN     Docker Hub Access Token（权限选 Read & Write）
+#   DOCKERHUB_USERNAME         Docker Hub 用户名
+#   DOCKERHUB_TOKEN            Docker Hub Access Token（权限选 Read & Write）
+#   ALIYUN_REGISTRY_USERNAME   阿里云容器镜像服务的镜像仓库登录用户名
+#   ALIYUN_REGISTRY_PASSWORD   ACR 控制台里设置的「镜像仓库固定密码」
 #
-# 未配置时镜像 job 会打出告警并跳过，不影响 Release 的创建。
+# 两组凭据都没配置时，镜像 job 会打出告警并跳过，不影响 Release 的创建。
 
 on:
   push:
@@ -79,55 +81,98 @@ jobs:
               dist/*.zip dist/*.tar.gz dist/checksums.txt
           fi
 
-  # 构建并推送多架构 Docker 镜像到 Docker Hub。
+  # 构建并推送多架构 Docker 镜像到 Docker Hub 与阿里云容器镜像服务。
   # 放在独立 job 里：镜像推送失败不会影响已经创建好的 GitHub Release。
+  # 两个仓库各有独立的凭据开关，只配一组也能用。
   docker:
     runs-on: ubuntu-latest
     needs: release
+    env:
+      # 阿里云镜像仓库地址；换账号 / 地域时改这两行
+      ALIYUN_REGISTRY: registry.cn-shenzhen.aliyuncs.com
+      ALIYUN_IMAGE: registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload
     steps:
       - uses: actions/checkout@v4
 
-      - name: 检查 Docker Hub 凭据
+      - name: 检查镜像仓库凭据
         id: creds
         env:
-          USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          ALI_USER: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          ALI_PASS: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
         run: |
-          if [ -n "$USERNAME" ] && [ -n "$TOKEN" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
+          images=""
+
+          if [ -n "$DH_USER" ] && [ -n "$DH_TOKEN" ]; then
+            echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+            images="${DH_USER}/golocaldownload"
           else
-            echo "::warning::未配置 DOCKERHUB_USERNAME / DOCKERHUB_TOKEN，跳过镜像构建与推送"
-            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "dockerhub=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::未配置 DOCKERHUB_USERNAME / DOCKERHUB_TOKEN，跳过 Docker Hub"
+          fi
+
+          if [ -n "$ALI_USER" ] && [ -n "$ALI_PASS" ]; then
+            echo "aliyun=true" >> "$GITHUB_OUTPUT"
+            if [ -z "$images" ]; then
+              images="$ALIYUN_IMAGE"
+            else
+              images=$(printf '%s\n%s' "$images" "$ALIYUN_IMAGE")
+            fi
+          else
+            echo "aliyun=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::未配置 ALIYUN_REGISTRY_USERNAME / ALIYUN_REGISTRY_PASSWORD，跳过阿里云"
+          fi
+
+          # metadata-action 的 images 接受多行列表，逐行对应一个仓库
+          if [ -z "$images" ]; then
+            echo "::warning::两组镜像仓库凭据都没配置，跳过镜像构建与推送"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "images<<EOF"
+              printf '%s\n' "$images"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: 准备 QEMU（构建非本机架构需要）
-        if: steps.creds.outputs.ok == 'true'
+        if: steps.creds.outputs.enabled == 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: 准备 Buildx
-        if: steps.creds.outputs.ok == 'true'
+        if: steps.creds.outputs.enabled == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: 登录 Docker Hub
-        if: steps.creds.outputs.ok == 'true'
+        if: steps.creds.outputs.dockerhub == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: 登录阿里云容器镜像服务
+        if: steps.creds.outputs.aliyun == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+
       # 预发布标签（含 -，如 26.09.28.01-rc1）只打版本号，不覆盖 latest
       - name: 生成镜像标签
-        if: steps.creds.outputs.ok == 'true'
+        if: steps.creds.outputs.enabled == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/golocaldownload
+          images: ${{ steps.creds.outputs.images }}
           tags: |
             type=ref,event=tag
             type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
 
       - name: 构建并推送（linux/amd64 + linux/arm64）
-        if: steps.creds.outputs.ok == 'true'
+        if: steps.creds.outputs.enabled == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
