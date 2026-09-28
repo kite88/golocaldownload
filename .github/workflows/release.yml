@@ -178,6 +178,13 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          # 阿里云 ACR（个人版）不认识 BuildKit 生成的证明清单，推送时会整包被拒：
+          #   denied: unknown manifest class for application/vnd.oci.empty.v1+json
+          # （application/vnd.oci.empty.v1+json 正是证明清单用的空 config 媒体类型）
+          # 所以这里必须关掉 provenance / sbom，代价是 Docker Hub 上也不带证明清单了。
+          # 若哪天只想给 Docker Hub 带证明清单，需拆成两次构建分别推送。
+          provenance: false
+          sbom: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
