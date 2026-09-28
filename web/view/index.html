@@ -23,34 +23,54 @@
     </script>
     <link rel="stylesheet" href="/web/static/bootstrap/v5.3.5/bootstrap.min.css">
     <style>
+        /* 把 Bootstrap 的圆角变量调柔和一点，按钮 / 输入框 / 卡片 / 弹窗会一起变 */
+        :root {
+            --bs-border-radius: 0.625rem;
+        }
+
         a {
             text-decoration: none;
             cursor: pointer;
         }
 
-        .row {
-            padding: 10px;
-        }
-
-        .input-group {
-            max-width: 300px;
-        }
-
-        .table {
+        /* ---------- 顶部一行：标题 / 搜索框 / 主题 ---------- */
+        .page-top {
             max-width: 1280px;
             margin: 0 auto;
+            padding: 18px 0 6px;
         }
 
-        td img {
-            margin-right: 5px;
+        .page-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
         }
 
-        th img {
-            width: 20px;
+        /* 下载库路径由 index.js 从 res.root_dir 填进来。标题只占左边一列，所以这里限制成
+           单行省略号——路径再长也不会把这一行撑高；完整路径挂在 title 上，悬停可见 */
+        .page-subtitle {
+            color: var(--bs-secondary-color);
+            font-size: 0.8125rem;
+            margin-top: 3px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ---------- 面包屑（独立一行） ---------- */
+        .toolbar-breadcrumb {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 4px 0 12px;
+        }
+
+        /* 面包屑层级多、换行时，行与行之间留一点缝 */
+        .nav {
+            row-gap: 4px;
         }
 
         .nav > li {
-            font-weight: bold;
+            font-weight: 600;
         }
 
         .nav > li + li:before {
@@ -59,12 +79,59 @@
             padding: 0 5px;
         }
 
+        /* 搜索框：加长 + 两端胶囊圆角（内侧重合用 shreshold 使左右各自成弧） */
+        .search-group {
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .search-group .form-control {
+            border-radius: 50rem 0 0 50rem;
+            padding-left: 1rem;
+        }
+
+        .search-group .btn {
+            border-radius: 0 50rem 50rem 0;
+            padding-left: 1.15rem;
+            padding-right: 1.15rem;
+            white-space: nowrap;
+        }
+
+        /* ---------- 列表卡片 ---------- */
+        .list-card {
+            max-width: 1280px;
+            margin: 0 auto 40px;
+            background: var(--bs-body-bg);
+            border: 1px solid var(--bs-border-color);
+            border-radius: 0.75rem;
+            overflow: hidden;
+        }
+
+        .list-card .table {
+            margin-bottom: 0;
+        }
+
+        .list-card .table > thead th {
+            background: var(--bs-tertiary-bg);
+            color: var(--bs-secondary-color);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* 文件类型图标：Material 图标是 24×24 的 viewBox，这里统一压到 16px 并与文件名基线对齐 */
+        .file-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            vertical-align: -3px;
+        }
+
         .cell-center {
             text-align: center;
         }
 
-        /* 命中行底色 / 关键字高亮 / 错误提示：这三个颜色语义特殊（要求足够的对比度），
-           所以各自给出浅色与深色两套取值。 */
+        /* 命中行底色 / 关键字高亮 / 错误提示：这三个颜色语义特殊（要有足够对比度），
+           所以各自给出浅色与深色两套取值 */
         .hl {
             background: #d1c2c2;
             color: #000000;
@@ -98,66 +165,70 @@
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="row">
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <!-- tooltip 由 index.js 在拿到下载库路径后初始化（Bootstrap 5 不自动初始化） -->
-            <ul class="nav"></ul>
+<div class="container-fluid">
+    <!-- 顶部一行：标题（左）/ 搜索框（中）/ 主题切换（右）。
+         搜索框靠左右两个对称的列顶到页面正中；小屏时三者竖向堆叠。 -->
+    <div class="row align-items-center page-top">
+        <div class="col-12 col-lg-3">
+            <h1 class="page-title">本地文件下载服务</h1>
+            <div class="page-subtitle" id="lib-path"></div>
         </div>
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="d-flex align-items-center justify-content-lg-end gap-2">
-                <div class="input-group input-group-sm">
-                    <input id="search-input-text" type="text" class="form-control" placeholder="输入检索信息"
-                           aria-label="输入检索信息" aria-describedby="basic-addon2">
-                    <div class="input-group-append">
-                        <button id="search-open-btn" class="btn btn-outline-secondary" type="button">全局检索</button>
-                    </div>
-                </div>
-                <!-- 主题切换：亮色 / 跟随系统 / 暗色，选择记在浏览器本地 -->
-                <div class="dropdown theme-switch">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="theme-toggle"
-                            data-bs-toggle="dropdown" aria-expanded="false" title="切换主题">
-                        主题：<span id="theme-label">跟随系统</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="theme-toggle">
-                        <li><button class="dropdown-item" type="button" data-theme="light">亮色</button></li>
-                        <li><button class="dropdown-item" type="button" data-theme="system">跟随系统</button></li>
-                        <li><button class="dropdown-item" type="button" data-theme="dark">暗色</button></li>
-                    </ul>
-                </div>
+        <div class="col-12 col-lg-6 d-flex justify-content-center my-2 my-lg-0">
+            <div class="input-group search-group">
+                <input id="search-input-text" type="text" class="form-control" placeholder="按文件名 / 目录名检索"
+                       aria-label="按文件名或目录名检索">
+                <button id="search-open-btn" class="btn btn-primary" type="button">全局检索</button>
+            </div>
+        </div>
+        <div class="col-12 col-lg-3 d-flex justify-content-lg-end">
+            <!-- 主题切换：亮色 / 跟随系统 / 暗色，选择记在浏览器本地。
+                 用「按钮组」而不是下拉框：项目内嵌的是非 bundle 版 bootstrap.min.js，
+                 不含 Popper，下拉框与 tooltip 初始化都会抛 _createPopper is not a function。 -->
+            <div class="btn-group btn-group-sm theme-switch" role="group" aria-label="主题切换">
+                <button type="button" class="btn btn-outline-secondary" data-theme="light">亮色</button>
+                <button type="button" class="btn btn-outline-secondary" data-theme="system">跟随系统</button>
+                <button type="button" class="btn btn-outline-secondary" data-theme="dark">暗色</button>
             </div>
         </div>
     </div>
-    <table class="table">
-        <thead>
-        <tr>
-            <th scope="col">文件目录</th>
-            <th scope="col">大小</th>
-            <th scope="col">时间</th>
-        </tr>
-        </thead>
-        <tbody>
 
-        </tbody>
-    </table>
+    <!-- 面包屑独立成行：路径层级多时整行换行，不会挤在窄栏里折成好几段 -->
+    <div class="row toolbar-breadcrumb">
+        <div class="col-12">
+            <!-- 存放路径同时填在 title 与上面的副标题里，这里用原生 title，不引入 tooltip 组件 -->
+            <ul class="nav"></ul>
+        </div>
+    </div>
+
+    <div class="list-card">
+        <table class="table table-hover align-middle">
+            <thead>
+            <tr>
+                <th scope="col">文件目录</th>
+                <th scope="col">大小</th>
+                <th scope="col">时间</th>
+            </tr>
+            </thead>
+            <tbody>
+
+            </tbody>
+        </table>
+    </div>
 </div>
-<!-- Modal -->
+<!-- Modal：Bootstrap 的 Modal 不依赖 Popper，可以放心用 -->
 <div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="input-group input-group-sm">
-                    <input id="search-input-text-i" type="text" class="form-control" placeholder="输入检索信息"
-                           aria-label="输入检索信息" aria-describedby="basic-addon2">
-                    <div class="input-group-append">
-                        <button id="search-get-btn" class="btn btn-outline-secondary" type="button">全局检索</button>
-                    </div>
+                <div class="input-group search-group">
+                    <input id="search-input-text-i" type="text" class="form-control" placeholder="按文件名 / 目录名检索"
+                           aria-label="按文件名或目录名检索">
+                    <button id="search-get-btn" class="btn btn-primary" type="button">全局检索</button>
                 </div>
                 <span id="res-length"></span>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div id="search-model-body" class="modal-body"></div>
-            <!--            <div id="search-modal-footer" class="modal-footer"></div>-->
         </div>
     </div>
 </div>

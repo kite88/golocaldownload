@@ -1,5 +1,8 @@
+// 说明：页面里只用 Bootstrap 的 Modal（不依赖 Popper）。
+// 内嵌的 bootstrap.min.js 是「非 bundle 版」，不含 Popper，所以按钮组之外不要引入
+// 下拉框 / tooltip / popover 这类组件，否则会抛 `_createPopper is not a function`。
+
 const THEME_KEY = 'gld-theme'
-const THEME_LABELS = {light: '亮色', system: '跟随系统', dark: '暗色'}
 
 initTheme()
 getList()
@@ -44,9 +47,9 @@ function isDarkTheme(mode) {
 // 把主题写到 <html data-bs-theme>，Bootstrap 5.3 的所有组件颜色都跟着它走。
 function applyTheme(mode) {
     document.documentElement.setAttribute('data-bs-theme', isDarkTheme(mode) ? 'dark' : 'light')
-    $('#theme-label').text(THEME_LABELS[mode])
-    $('.dropdown-item[data-theme]').each(function () {
-        $(this).toggleClass('active', attr(this, 'data-theme') === mode)
+    $('.theme-switch button[data-theme]').each(function () {
+        const active = attr(this, 'data-theme') === mode
+        $(this).toggleClass('active', active).attr('aria-pressed', active)
     })
 }
 
@@ -62,13 +65,73 @@ function setTheme(mode) {
 function initTheme() {
     // 首帧的主题已由 index.html 里的内联脚本设置好，这里只同步按钮状态与监听。
     applyTheme(getTheme())
-    $('.dropdown-item[data-theme]').on('click', function () {
+    $('.theme-switch button[data-theme]').on('click', function () {
         setTheme(attr(this, 'data-theme'))
     })
     // 「跟随系统」时，系统切换深色要实时生效
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
         if (getTheme() === 'system') applyTheme('system')
     })
+}
+
+// ---------------------------------------------------------------- 文件类型图标
+
+// 图标取自 Material Icon Theme（VS Code 默认图标集，MIT，见 web/static/icon/material/LICENSE.txt）。
+// 该图标集里压缩包只有一个 zip 图标、表格类统一叫 table、通用文档叫 document，
+// 所以下面的映射里 rar/7z 等都指向 zip，xls/csv 指向 table。
+const ICON_DIR = '/web/static/icon/material/'
+const ICON_FOLDER = ICON_DIR + 'folder-base.svg'
+const ICON_BY_EXT = {
+    // 压缩包
+    zip: 'zip', rar: 'zip', '7z': 'zip', tar: 'zip', gz: 'zip', tgz: 'zip', bz2: 'zip', xz: 'zip', zst: 'zip',
+    // 图片
+    jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', bmp: 'image', tif: 'image', tiff: 'image', heic: 'image', raw: 'image',
+    svg: 'svg',
+    // 视频
+    mp4: 'video', mkv: 'video', avi: 'video', mov: 'video', wmv: 'video', flv: 'video', webm: 'video', m4v: 'video', mpg: 'video', mpeg: 'video', rmvb: 'video', '3gp': 'video',
+    // 音频
+    mp3: 'audio', wav: 'audio', flac: 'audio', aac: 'audio', ogg: 'audio', m4a: 'audio', wma: 'audio', opus: 'audio',
+    // 文档
+    pdf: 'pdf',
+    doc: 'word', docx: 'word', rtf: 'word', odt: 'word',
+    xls: 'table', xlsx: 'table', csv: 'table', tsv: 'table', ods: 'table',
+    ppt: 'powerpoint', pptx: 'powerpoint', odp: 'powerpoint',
+    md: 'markdown', markdown: 'markdown',
+    txt: 'document', log: 'document', ini: 'document', conf: 'document', cfg: 'document',
+    // 数据 / 配置
+    json: 'json', json5: 'json',
+    xml: 'xml', plist: 'xml',
+    yml: 'yaml', yaml: 'yaml', toml: 'yaml',
+    db: 'database', sqlite: 'database', sqlite3: 'database', sql: 'database', mdb: 'database',
+    // 代码
+    html: 'html', htm: 'html',
+    css: 'css',
+    scss: 'sass', sass: 'sass',
+    less: 'less',
+    js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript',
+    ts: 'typescript', tsx: 'typescript',
+    go: 'go',
+    py: 'python', pyw: 'python',
+    java: 'java', jar: 'java', class: 'java',
+    rs: 'rust',
+    php: 'php',
+    sh: 'console', bash: 'console', zsh: 'console', bat: 'console', cmd: 'console',
+    ps1: 'powershell', psm1: 'powershell',
+    // 其它
+    ttf: 'font', otf: 'font', woff: 'font', woff2: 'font',
+    exe: 'exe', msi: 'exe', com: 'exe',
+    dll: 'dll', so: 'dll', dylib: 'dll',
+    iso: 'disc', img: 'disc', dmg: 'disc', vhd: 'disc',
+    pem: 'key', key: 'key', crt: 'key', cer: 'key', pfx: 'key', p12: 'key',
+    lock: 'lock',
+}
+
+// fileIcon 按扩展名挑图标；没有扩展名（包括 .gitignore 这类点开头的文件）或未收录的
+// 扩展名，一律回落到通用文档图标。
+function fileIcon(name) {
+    const dot = String(name).lastIndexOf('.')
+    const ext = dot > 0 ? String(name).slice(dot + 1).toLowerCase() : ''
+    return ICON_DIR + (ICON_BY_EXT[ext] || 'document') + '.svg'
 }
 
 // ---------------------------------------------------------------- 目录列表
@@ -94,12 +157,11 @@ function renderBreadcrumb(res) {
         }
     }
 
-    // Bootstrap 5 不会自动初始化 tooltip，而且标题只在初始化时读取一次，
-    // 所以先销毁旧实例再按最新路径重建。
-    const title = '本地服务器存放路径：' + res.root_dir
-    const tip = bootstrap.Tooltip.getInstance($nav[0])
-    if (tip) tip.dispose()
-    new bootstrap.Tooltip($nav[0], {title: title, placement: 'bottom'})
+    // 下载库路径同时写进页面副标题（比只挂在 title 上更容易发现）；这里的 title 用原生
+    // 属性实现，不用 bootstrap.Tooltip —— 它依赖 Popper，而非 bundle 版里没有 Popper。
+    $nav.attr('title', '本地服务器存放路径：' + res.root_dir)
+    // 副标题在窄列里会省略号截断，所以完整路径另挂在 title 上，悬停可看全
+    $('#lib-path').text('下载库路径：' + res.root_dir).attr('title', res.root_dir)
 }
 
 function renderList(res, file) {
@@ -131,14 +193,14 @@ function renderList(res, file) {
         if (item.is_dir) {
             return '<tr>' +
                 '<td' + cls + '><a onclick="getNextList(this)" data-path="' + esc(item.path) + '">' +
-                '<img src="/web/static/icon/folder.png" alt="">' + name + '</a></td>' +
+                '<img class="file-icon" src="' + ICON_FOLDER + '" alt="">' + name + '</a></td>' +
                 '<td' + cls + '></td>' +
                 '<td' + cls + '>' + esc(item.mod_time) + '</td>' +
                 '</tr>'
         }
         return '<tr>' +
-            '<td' + cls + '><img src="/web/static/icon/file.png" alt="">' + name +
-            '<button onclick="download(this)" data-pathname-key="' + esc(item.pathname_key) + '" class="btn btn-sm btn-link">下载</button></td>' +
+            '<td' + cls + '><img class="file-icon" src="' + fileIcon(item.name) + '" alt="">' + name +
+            '<button onclick="download(this)" data-pathname-key="' + esc(item.pathname_key) + '" class="btn btn-sm btn-outline-primary ms-2">下载</button></td>' +
             '<td' + cls + '>' + esc(item.size) + ' ' + esc(item.size_unit) + '</td>' +
             '<td' + cls + '>' + esc(item.mod_time) + '</td>' +
             '</tr>'
@@ -226,12 +288,12 @@ function getSearchList(keyword) {
             const name = esc(item.name)
             let img, size = '', btn
             if (item.is_dir) {
-                img = '<img src="/web/static/icon/folder.png" alt=""> '
+                img = '<img class="file-icon" src="' + ICON_FOLDER + '" alt=""> '
                 btn = '<a class="btn-link" href="?s=' + encodeURIComponent(item.path) + '">定位到此目录</a>'
             } else {
-                img = '<img src="/web/static/icon/file.png" alt=""> '
+                img = '<img class="file-icon" src="' + fileIcon(item.name) + '" alt=""> '
                 size = '<i class="text-info">' + esc(item.size) + ' ' + esc(item.size_unit) + '</i>'
-                btn = '<button onclick="download(this)" data-pathname-key="' + esc(item.pathname_key) + '" class="btn btn-sm btn-link">下载</button>'
+                btn = '<button onclick="download(this)" data-pathname-key="' + esc(item.pathname_key) + '" class="btn btn-sm btn-outline-primary ms-2">下载</button>'
                 btn += '<a class="btn-link" href="?s=' + encodeURIComponent(item.parent_path) + '&f=' + encodeURIComponent(item.name) + '">定位到文件目录</a>'
             }
             const path = esc(String(item.path).replace(/[\\/]/g, '/'))

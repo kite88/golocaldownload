@@ -108,7 +108,11 @@ func TestIndexPage(t *testing.T) {
 func TestStaticAsset(t *testing.T) {
 	f := newFixture(t)
 
-	for _, path := range []string{"/web/static/icon/folder.png", "/favicon.ico"} {
+	for _, path := range []string{
+		"/web/static/icon/material/folder-base.svg",
+		"/web/static/icon/material/zip.svg",
+		"/favicon.ico",
+	} {
 		rec := f.get(t, path, nil)
 		if rec.Code != http.StatusOK {
 			t.Errorf("GET %s 状态码 = %d, want 200", path, rec.Code)
