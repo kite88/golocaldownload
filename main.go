@@ -71,7 +71,12 @@ func run() error {
 	}
 	fmt.Println("下载库目录:", libDir)
 
-	engine, err := router.R(envMode, viewFS, staticFS, handle.New(libDir))
+	displayDir := displayLibPath(libDir)
+	if displayDir != "" && displayDir != libDir {
+		fmt.Println("宿主机目录:", displayDir)
+	}
+
+	engine, err := router.R(envMode, viewFS, staticFS, handle.New(libDir, displayDir))
 	if err != nil {
 		return err
 	}
@@ -96,6 +101,16 @@ func prepareDownloadLib() (string, error) {
 		return "", fmt.Errorf("获取当前工作目录失败: %w", err)
 	}
 	return wd, nil
+}
+
+// displayLibPath 决定页面上展示的下载库路径：配置 display_lib_path 优先，否则尝试从挂载信息
+// 推断宿主机上的映射目录——容器里看到的永远是容器内路径，而用户要的是宿主机上那个目录。
+// 推断不出来时返回空串，展示回落为 libDir 本身。
+func displayLibPath(libDir string) string {
+	if p := config.GetString("display_lib_path", ""); p != "" {
+		return p
+	}
+	return common.HostPath(libDir)
 }
 
 // serve 启动 HTTP 服务，并在收到 Ctrl+C / SIGTERM 时优雅退出。
