@@ -37,7 +37,8 @@
 │   └── static/             Bootstrap / jQuery / 图标 / 前端脚本（内嵌）
 ├── tools/pack/             归档打包器：让 zip 与 tar.gz 可复现（构建脚本调用）
 ├── build.ps1 / build.sh    交叉编译全部平台
-└── Dockerfile              两阶段构建的最小镜像
+├── Dockerfile              两阶段构建的最小镜像
+└── .github/workflows/      发版流程：检查/测试 → 交叉编译发 Release → 推多架构镜像
 ```
 
 ## 快速开始
@@ -137,17 +138,76 @@ dist/
 
 ### 发版
 
-推 `v*` 或日期式标签（如 `25.07.07.01`）即可，workflow（`.github/workflows/release.yml`）
-会自动跑静态检查、单元测试、交叉编译全部平台并创建 GitHub Release：
+推 `v*` 或日期式标签（如 `26.09.28.01`）即可，workflow（`.github/workflows/release.yml`）
+会自动做完三件事：
+
+1. **检查与测试**：`go vet ./...`、`go test ./...`；
+2. **发 Release**：交叉编译全部平台，用 `sha256sum -c checksums.txt` 自检产物，再创建 GitHub Release；
+3. **推镜像**：构建 linux/amd64 + linux/arm64 多架构镜像，推到 Docker Hub 与阿里云容器镜像服务。
 
 ```bash
-git tag 25.07.07.01 && git push origin 25.07.07.01
+git tag 26.09.28.01 && git push origin 26.09.28.01
 ```
 
-流程会用 `sha256sum -c checksums.txt` 自检产物，任一步失败都不会发版；标签名含 `-`（如
-`25.07.07.01-rc1`）会自动标记为 prerelease，不会顶掉 Latest。
+任一步失败都不会发版；标签名含 `-`（如 `26.09.28.01-rc1`）会被标记为 prerelease，并且
+**不会覆盖镜像的 `latest` 标签**。
+
+#### 镜像推送需要配置 4 个 Secrets
+
+仓库 → **Settings → Secrets and variables → Actions**（直达
+`https://github.com/kite88/golocaldownload/settings/secrets/actions`）：
+
+| Secret | 值从哪里来 |
+| --- | --- |
+| `DOCKERHUB_USERNAME` | Docker Hub 的**登录用户名**（不是显示名、不是邮箱） |
+| `DOCKERHUB_TOKEN` | Docker Hub **Access Token**，权限选 **Repo Read & Write**；密码登录已被 Docker Hub 弃用 |
+| `ALIYUN_REGISTRY_USERNAME` | 阿里云 ACR 控制台「访问凭证」页显示的登录用户名 |
+| `ALIYUN_REGISTRY_PASSWORD` | 同页设置的 **Registry 固定密码**（不是阿里云账号密码，也不是 AccessKey） |
+
+两个仓库是**独立开关**：只配一组也能用，缺的那组只在日志里打一条 `::notice::` 跳过；
+两组都没配时镜像 job 直接跳过并给出告警，不影响 Release 的创建。
+
+镜像地址写在 workflow 的 `env:` 里，换账号 / 地域时改这两行即可：
+
+```yaml
+ALIYUN_REGISTRY: registry.cn-shenzhen.aliyuncs.com
+ALIYUN_IMAGE: registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload
+```
+
+> 镜像构建**显式关闭了 `provenance` / `sbom`**：阿里云 ACR 个人版不认 BuildKit 生成的证明清单
+> （`application/vnd.oci.empty.v1+json`），开着会直接 `denied: unknown manifest class`，
+> 整包推不上去。要恢复的话得拆成两次构建分别推送两个仓库。
 
 ## 部署
+
+> 怎么选：改代码 / 长期维护用**方式一**；只想跑程序用**方式二**；有 Docker 环境用**方式三**（本地构建）
+> 或**方式四**（compose）；只想拉现成镜像用**方式五**（Docker Hub）或**方式六**（阿里云）。
+
+### 挂载路径怎么写（Docker 各方式通用）
+
+Docker 各方式里的 `-v <宿主机目录>:/root/download_lib`，**右边必须固定写 `/root/download_lib`**
+（镜像内嵌配置里的下载库是相对路径，基于容器工作目录 `/root/`）；左边按宿主机系统填：
+
+| 宿主机 | 左边的写法 | 文件实际位置 |
+| --- | --- | --- |
+| Linux | `-v /home/download_lib:/root/download_lib` | `/home/download_lib` |
+| Windows + Docker Desktop | `-v D:/download_lib:/root/download_lib` | `D:\download_lib`（资源管理器里可见） |
+| macOS + Docker Desktop | `-v /Users/你/download_lib:/root/download_lib` | 该目录 |
+
+Windows 上另外两个坑：
+
+- **别用 Linux 风格路径**。`-v /home/download_lib:...` 会被当成 Docker Desktop 的 WSL2 虚拟机**内部**路径：
+  容器照样能跑，但数据不在 Windows 上、资源管理器看不到，Docker Desktop「Reset to factory defaults」
+  时还会一起丢掉。要放 Windows 目录就用带盘符的路径，**正斜杠最稳**。
+- **Git Bash 会改写路径**。MSYS 会把 `/home/download_lib` 转成 `<Git 安装目录>/home/download_lib`，
+  需要写成 `//home/download_lib` 或加 `MSYS_NO_PATHCONV=1`；直接用 `D:/download_lib` 也能绕开。
+
+目录不存在会自动创建（Docker 建宿主机目录，程序启动时 `MkdirAll` 兜底）。挂载是否生效一验便知：
+
+```bash
+docker exec <容器名> ls -l /root/download_lib   # 容器内看到的
+dir D:\download_lib                             # Windows 宿主机上看到的，两者应一致
+```
 
 ### 方式一：本地源码部署、二次开发
 
@@ -162,23 +222,31 @@ go run .
 
 ### 方式二：本地主机运行可执行文件
 
-从 [Releases](https://github.com/kite88/golocaldownload/releases/latest) 下载对应平台的压缩包，
-解压后直接运行；如果需要换端口或下载库目录，在同目录放一份 `env.ini` 即可。
+从 [Releases](https://github.com/kite88/golocaldownload/releases/latest) 下载对应平台的压缩包
+（Windows 选 `.zip`，Linux / macOS / FreeBSD 选 `.tar.gz`），解压后直接运行；需要换端口或下载库目录，
+在同目录放一份 `env.ini` 即可（模板见 `config/env.ini.*`）。
 
-### 方式三：Docker 部署
+### 方式三：Docker 部署（本地构建镜像）
 
 ```bash
 docker build -t golocaldownload:latest .
+
+# Linux 宿主机
 docker run -p 9801:9801 -v /home/download_lib:/root/download_lib --restart always --name golocaldownload-app -d golocaldownload:latest
+
+# Windows / macOS 宿主机：把 -v 左边换成自己的目录
+docker run -p 9801:9801 -v D:/download_lib:/root/download_lib --restart always --name golocaldownload-app -d golocaldownload:latest
 ```
 
-参数说明：
+- `-p 9801:9801`：宿主机 9801 端口 → 容器 9801 端口；
+- `-v <宿主机目录>:/root/download_lib`：下载库挂载，写法见上面「挂载路径」小节；
+- `--restart always`：容器退出后自动重启；`-d`：后台运行。
 
-- `-p 9801:9801`，把宿主机的 9801 端口映射到容器的 9801 端口；
-- `-v /home/download_lib:/root/download_lib`，把宿主机的下载库目录挂载到容器内（Windows 装了
-  Linux 子系统与 Docker Desktop，也可以写成 `-v D:\download_lib:/root/download_lib`）；
-- `--restart always`，容器退出后自动重启；
-- `-d`，后台运行。
+构建时可以顺带注入版本号（只影响容器内 `golocaldownload -version` 的输出）：
+
+```bash
+docker build --build-arg GLD_VERSION=26.09.28.00 -t golocaldownload:latest .
+```
 
 ### 方式四：docker-compose 部署
 
@@ -186,25 +254,28 @@ docker run -p 9801:9801 -v /home/download_lib:/root/download_lib --restart alway
 docker compose up -d      # 旧版 docker-compose 命令为 docker-compose up -d
 ```
 
-端口为 9801，下载库目录为 `/home/download_lib`，可在 `docker-compose.yml` 中修改。
+端口与下载库目录都在 `docker-compose.yml` 里改。默认写的是 `/home/download_lib`（Linux 主机写法），
+**Windows 上要换成带盘符的路径**，例如 `D:/download_lib:/root/download_lib`。
 
-### 方式五：Docker 制品直接部署
+### 方式五：拉取 Docker Hub 上的现成镜像
 
 ```bash
 docker pull tutudev99/golocaldownload:latest
 docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/download_lib --restart always -d tutudev99/golocaldownload:latest
 ```
 
-### 方式六：阿里云制品仓库拉取部署
+### 方式六：拉取阿里云容器镜像服务上的现成镜像
 
 ```bash
 docker pull registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:latest
 docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/download_lib --restart always -d registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:latest
 ```
 
+> Windows / macOS 宿主机把 `-v` 左边换成自己的目录（见上面「挂载路径」小节）。
+>
 > 两个仓库都由发版流程自动推送两份标签：`latest` 与对应版本号（如 `26.09.28.00`），镜像同时覆盖
-> linux/amd64 与 linux/arm64。需要固定版本、避免 `latest` 随发版漂移时，把命令里的 `:latest`
-> 换成具体版本号即可。
+> linux/amd64 与 linux/arm64，ARM 服务器与 Apple Silicon 可直接跑。需要固定版本、避免 `latest`
+> 随发版漂移时，把命令里的 `:latest` 换成具体版本号即可。
 
 ## 接口
 
@@ -268,6 +339,9 @@ docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/downl
 - **根目录显式注入**：不再用 `GLD_download_lib_path` 环境变量在包之间隐式传递，
   `handle.New(root)` 让接口天然可测——`test/` 里用 `httptest` 在进程内跑真实路由，
   覆盖了列表、检索、下载、越界拒绝与 404 等场景。
+- **发版与镜像解耦、且可重跑**：镜像推送是独立 job，跑在 Release 之后，推镜像失败不影响已发好的
+  Release；两个仓库的凭据各自独立开关，缺一组只跳过一组。Release 创建做成了幂等（已存在则
+  `gh release upload --clobber` 覆盖同名产物），否则镜像失败后重跑会先卡在「Release 已存在」上。
 
 ## 已知局限
 
@@ -279,6 +353,8 @@ docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/downl
 5. **没有断点续传与限速**：下载走 `gin.Context.File`，由标准库 `http.ServeContent` 处理
    Range 请求，但没有做并发数限制与限速，大文件高并发时容易把带宽打满。
 6. **前端仍是 jQuery + 字符串拼 HTML**（已做转义），没有做前后端分离与构建链路。
+7. **Docker 镜像只覆盖 linux/amd64 与 linux/arm64**（GitHub Release 里则是 15 个平台的二进制）；
+   32 位 x86 或其它架构请在宿主机上直接跑二进制，或用方式三自行构建。
 
 ## 开发
 
