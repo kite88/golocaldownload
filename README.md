@@ -191,16 +191,20 @@ docker compose up -d      # 旧版 docker-compose 命令为 docker-compose up -d
 ### 方式五：Docker 制品直接部署
 
 ```bash
-docker pull tutudev99/golocaldownload:25.07.07.00
-docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/download_lib --restart always -d tutudev99/golocaldownload:25.07.07.00
+docker pull tutudev99/golocaldownload:latest
+docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/download_lib --restart always -d tutudev99/golocaldownload:latest
 ```
 
 ### 方式六：阿里云制品仓库拉取部署
 
 ```bash
-docker pull registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:25.07.07.00
-docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/download_lib --restart always -d registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:25.07.07.00
+docker pull registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:latest
+docker run -p 9801:9801 --name golocaldownload -v /home/download_lib:/root/download_lib --restart always -d registry.cn-shenzhen.aliyuncs.com/tutudev99/golocaldownload:latest
 ```
+
+> 两个仓库都由发版流程自动推送两份标签：`latest` 与对应版本号（如 `26.09.28.00`），镜像同时覆盖
+> linux/amd64 与 linux/arm64。需要固定版本、避免 `latest` 随发版漂移时，把命令里的 `:latest`
+> 换成具体版本号即可。
 
 ## 接口
 
