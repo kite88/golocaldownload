@@ -1,9 +1,9 @@
+[简体中文](README.md) · English
+
 # golocaldownload · Local File Download Service
 
 [![Release](https://img.shields.io/github/v/release/kite88/golocaldownload)](https://github.com/kite88/golocaldownload/releases/latest)
 [![License](https://img.shields.io/github/license/kite88/golocaldownload)](LICENSE)
-
-[![简体中文](https://img.shields.io/badge/简体中文-lightgrey?style=flat-square)](README.md) [![English](https://img.shields.io/badge/English-blue?style=flat-square)](README.en.md)
 
 A local file download service written in Go + Gin: point it at a directory on your server to
 use as the "download library", then browse directories, search file names globally, and download
