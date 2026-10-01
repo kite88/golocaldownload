@@ -3,6 +3,8 @@
 [![Release](https://img.shields.io/github/v/release/kite88/golocaldownload)](https://github.com/kite88/golocaldownload/releases/latest)
 [![License](https://img.shields.io/github/license/kite88/golocaldownload)](LICENSE)
 
+[![简体中文](https://img.shields.io/badge/简体中文-blue?style=flat-square)](README.md) [![English](https://img.shields.io/badge/English-lightgrey?style=flat-square)](README.en.md)
+
 用 Go + Gin 写的本地文件下载服务：把服务器上的某个目录当作「下载库」，浏览器里就能浏览目录、
 按文件名全局检索、点击下载。页面模板与静态资源全部内嵌进二进制，发布出去就是一个可执行文件，
 配置也有内嵌默认值，**解压即用**。
