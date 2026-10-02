@@ -171,8 +171,17 @@
         }
 
         /* 命中行底色 / 关键字高亮 / 错误提示：这三个颜色语义特殊（要有足够对比度），
-           所以各自给出浅色与深色两套取值 */
-        .hl {
+           所以各自给出浅色与深色两套取值。
+           .hl 是加在表格单元格上的，而 Bootstrap 的 .table>:not(caption)>*>* 会把每个单元格的
+           背景铺成 var(--bs-table-bg)：它和 .hl 权重相同、又定义在样式表里，只写 .hl 的话底色
+           会被盖掉（命中行看不出任何变化）。所以这里一并给出 td.hl / th.hl —— 权重与它相同，
+           而内联 style 排在 bootstrap 之后，同权重时后来者生效；顺手把 --bs-table-* 变量也改掉，
+           给单元格背景留一条变量层面的退路（hover 时那层 box-shadow 是叠加在它之上的） */
+        .hl,
+        td.hl,
+        th.hl {
+            --bs-table-bg: #d1c2c2;
+            --bs-table-color: #000000;
             background: #d1c2c2;
             color: #000000;
         }
@@ -186,7 +195,11 @@
             color: #b02a37;
         }
 
-        [data-bs-theme="dark"] .hl {
+        [data-bs-theme="dark"] .hl,
+        [data-bs-theme="dark"] td.hl,
+        [data-bs-theme="dark"] th.hl {
+            --bs-table-bg: #4b5563;
+            --bs-table-color: #f8f9fa;
             background: #4b5563;
             color: #f8f9fa;
         }
