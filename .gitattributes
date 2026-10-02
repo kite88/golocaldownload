@@ -2,3 +2,9 @@
 # 那样在 Linux/macOS 或 git bash 里执行 ./build.sh 会报
 # "bad interpreter: /bin/bash^M"（GitHub Actions 用的是 Linux，必须保证 LF）
 *.sh text eol=lf
+
+# Windows 批处理固定用 CRLF 检出：cmd.exe 对纯 LF 的批处理解析不可靠（成块的括号、
+# goto 标签尤其容易出错），发布归档里的 start.bat 也应该是 CRLF。eol=crlf 会让所有
+# 平台的检出（包括 Linux 上的 CI）都是 CRLF；只靠本机的 core.autocrlf，CI 检出的是
+# LF，打进 zip 里的就是 LF。
+*.bat text eol=crlf
