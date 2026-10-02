@@ -15,6 +15,19 @@
 | GitCode | https://gitcode.com/kite88/golocaldownload |
 | Gitee   | https://gitee.com/kite88/golocaldownload   |
 
+## 界面预览
+
+> 截图取自本机 `go run .` 的实际页面：下载库指向 `E:\download_lib`，标题下方显示的就是这个目录
+> （在容器里会显示成宿主机上映射的那个目录）。
+
+| 列表视图：目录排在文件前，带大小与修改时间 | 网格视图：按扩展名显示图标 |
+| :--: | :--: |
+| ![](docs/images/web-01-list.png) | ![](docs/images/web-02-grid.png) |
+
+| 暗色主题：亮色 / 跟随系统 / 暗色三态可切换 | 窄屏：手机浏览器下自动改为纵向堆叠 |
+| :--: | :--: |
+| ![](docs/images/web-03-dark.png) | ![](docs/images/web-07-narrow.png) |
+
 ## 功能
 
 - **目录浏览**：面包屑逐级跳转，目录排在文件前面，展示大小与修改时间。
@@ -32,6 +45,30 @@
 - **单文件交付**：页面模板、静态资源、配置模板全部内嵌，运行时不依赖任何外部文件。
 - **优雅退出**：`Ctrl+C` 或 `SIGTERM` 会等待在途下载收尾后再退出，不会掐断大文件传输。
 
+## 功能演示
+
+### 1. 目录浏览与面包屑
+
+点目录名进入下一级，面包屑按层级铺开，任意一级都能直接跳回去；目录排在文件前面，列表与网格两套视图
+共用同一份数据，切换时只重绘、不重新请求接口。
+
+![](docs/images/web-05-subdir.png)
+
+### 2. 全局检索
+
+按文件名 / 目录名做忽略大小写的子串匹配（最多 500 条），命中的文件名与路径都会高亮；每条结果都能
+直接「下载」「复制地址」，目录还能「定位到此目录」、文件能「定位到文件目录」，一键跳到它所在的层级。
+
+![](docs/images/web-04-search.png)
+
+### 3. 下载与一键复制地址
+
+「下载」走浏览器原生下载；「复制地址」复制出来的是可直接使用的绝对地址
+（`http://<host>:9801/api/download?data=...`），粘到浏览器、`wget`、下载工具里都能直接吃，
+目录复制的则是定位到该目录的页面地址；复制成功后链接会短暂变成绿色的「已复制」。
+
+![](docs/images/web-06-copied.png)
+
 ## 目录结构
 
 ```text
@@ -46,6 +83,7 @@
 │   ├── view/index.html     页面模板（内嵌）
 │   └── static/             Bootstrap / jQuery / 图标 / 前端脚本（内嵌）
 ├── tools/pack/             归档打包器：让 zip 与 tar.gz 可复现（构建脚本调用）
+├── start.bat / start.sh    启动脚本：与可执行文件同级，双击 / ./ 即可运行（会打进归档）
 ├── build.ps1 / build.sh    交叉编译全部平台
 ├── Dockerfile              两阶段构建的最小镜像
 └── .github/workflows/      发版流程：检查/测试 → 交叉编译发 Release → 推多架构镜像
@@ -133,19 +171,22 @@ go build -o golocaldownload . && ./golocaldownload
 
 ```text
 dist/
-├── golocaldownload-windows-amd64.zip    →  golocaldownload.exe
-├── golocaldownload-linux-arm64.tar.gz   →  golocaldownload  （带 0755 执行位）
+├── golocaldownload-windows-amd64.zip    →  golocaldownload.exe + start.bat
+├── golocaldownload-linux-arm64.tar.gz   →  golocaldownload + start.sh（都是 0755 执行位）
 ├── ……                                    （共 15 个平台）
 ├── golocaldownload(.exe)                ← 本机平台的未压缩版，本机自用、不发布
 └── checksums.txt                        ← 15 个归档的 SHA256（LF 换行，可 sha256sum -c）
 ```
 
 归档里的可执行文件带版本号（取自 `git describe`，非 git 环境为 `dev`），`golocaldownload -version` 可查。
+每个归档里还多带一份启动脚本（Windows 是 `start.bat`，其余平台是 `start.sh`）：解压后双击 / 执行它就能
+起来，参数原样透传给程序，例如 `start.bat -config .\env.ini`、`./start.sh -config /etc/gld/env.ini`。
 
 > 归档由 `tools/pack` 生成，而不是调用系统 `tar` / `zip`：Windows 自带的 `tar.exe`（精简版
 > bsdtar）不读 Unix 权限位、也不支持 `--mode`，打出来的包在 Linux 上解压是 644、跑不起来；
 > `zip(1)` 在 macOS / Linux 上也不是必然存在，而且各实现写出的字节不一致。`pack` 用 Go 标准库
-> 显式写入 0755，并把时间戳固定下来，所以同源码无论在哪个平台、用哪个脚本构建，产物和校验和都可复现。
+> 显式写入 0755，并把时间戳固定下来，所以同源码无论在哪个平台、用哪个脚本构建，产物和校验和都可复现；
+> 启动脚本这类附加文件用 `-add`（`归档内文件名=源文件路径`，可重复）写进同一个归档。
 
 ### 发版
 
@@ -277,6 +318,9 @@ go build -trimpath -ldflags "-X main.version=26.09.28.02" -o golocaldownload .
 刷新页面就能看到。启动日志会打印版本、配置来源、下载库目录与实际可访问地址（本机 + 局域网）；
 `Ctrl+C` 会等在途下载收尾后再退出。
 
+编译产物就落在仓库根目录，旁边的 `start.bat` / `start.sh` 可以直接用（双击 / `./start.sh`），
+用法与归档里的那份一致。
+
 **4. 改配置**
 
 四种做法，挑顺手的（优先级见上面「配置来源」）：
@@ -321,8 +365,15 @@ $env:GLD_CONFIG = 'D:\gld\env.ini'; go run .       # ④
 ### 方式二：本地主机运行可执行文件
 
 从 [Releases](https://github.com/kite88/golocaldownload/releases/latest) 下载对应平台的压缩包
-（Windows 选 `.zip`，Linux / macOS / FreeBSD 选 `.tar.gz`），解压后直接运行；需要换端口或下载库目录，
-在同目录放一份 `env.ini` 即可（模板见 `config/env.ini.*`）。
+（Windows 选 `.zip`，Linux / macOS / FreeBSD 选 `.tar.gz`），解压后：
+
+- **Windows**：双击 `start.bat`（等价于直接跑 `golocaldownload.exe`）。程序退出后窗口会停住显示
+  退出码，按任意键关闭；在别的脚本里调用可先设 `GLD_NO_PAUSE=1` 跳过这一步。
+- **Linux / macOS / FreeBSD**：执行 `./start.sh`（与可执行文件同目录，执行位在归档里已经带好）。
+
+两个脚本都只是「前台启动 + 参数透传」，想直接运行可执行文件也一样：`start.bat -config .\env.ini`
+与 `golocaldownload.exe -config .\env.ini` 等价。需要换端口或下载库目录，在同目录放一份 `env.ini`
+即可（模板见 `config/env.ini.*`）。
 
 ### 方式三：Docker 部署（本地构建镜像）
 

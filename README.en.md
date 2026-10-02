@@ -17,6 +17,20 @@ so a release is a single executable — configuration defaults are embedded too,
 | GitCode | https://gitcode.com/kite88/golocaldownload |
 | Gitee   | https://gitee.com/kite88/golocaldownload   |
 
+## Screenshots
+
+> Captured from a real `go run .` session with the download library pointed at `E:\download_lib`;
+> the path under the title is exactly that directory (inside a container it shows the mapped
+> host directory instead).
+
+| List view: directories first, with size and modification time | Grid view: icons chosen by extension |
+| :--: | :--: |
+| ![](docs/images/web-01-list.png) | ![](docs/images/web-02-grid.png) |
+
+| Dark theme: light / follow system / dark | Narrow screens: stacks vertically in a phone browser |
+| :--: | :--: |
+| ![](docs/images/web-03-dark.png) | ![](docs/images/web-07-narrow.png) |
+
 ## Features
 
 - **Directory browsing**: navigate level by level with breadcrumbs; directories sort before
@@ -47,6 +61,34 @@ so a release is a single executable — configuration defaults are embedded too,
 - **Graceful shutdown**: `Ctrl+C` or `SIGTERM` waits for in-flight downloads to finish before
   exiting, so large transfers never get cut off.
 
+## Feature Walkthrough
+
+### 1. Directory browsing and breadcrumbs
+
+Click a directory name to descend; the breadcrumb expands level by level and any level can be
+jumped back to directly. Directories sort before files, and the list and grid views share one
+dataset — switching only re-renders, it never re-requests the API.
+
+![](docs/images/web-05-subdir.png)
+
+### 2. Global search
+
+Case-insensitive substring matching on file / directory names (500 results max), with both the
+matched keyword and the full path highlighted. Every result offers "Download" and "Copy link"
+directly, plus "Go to this directory" for directories and "Go to the containing directory" for
+files, so you can jump to the right level in one click.
+
+![](docs/images/web-04-search.png)
+
+### 3. Downloading and one-click copy
+
+"Download" uses the browser's native download; "Copy link" copies a ready-to-use absolute URL
+(`http://<host>:9801/api/download?data=...`) that works when pasted into a browser, `wget`, or a
+download manager, while directories copy the page URL pointing to that directory. After copying,
+the link briefly turns into a green "Copied".
+
+![](docs/images/web-06-copied.png)
+
 ## Project Layout
 
 ```text
@@ -61,6 +103,7 @@ so a release is a single executable — configuration defaults are embedded too,
 │   ├── view/index.html     Page template (embedded)
 │   └── static/             Bootstrap / jQuery / icons / frontend scripts (embedded)
 ├── tools/pack/             Archiver: makes zip and tar.gz reproducible (invoked by build scripts)
+├── start.bat / start.sh    Launchers: sit next to the binary, double-click / ./ to run (shipped in the archives)
 ├── build.ps1 / build.sh    Cross-compile all platforms
 ├── Dockerfile              Two-stage minimal image build
 └── .github/workflows/      Release flow: checks/tests → cross-compile & Release → push multi-arch images
@@ -153,22 +196,27 @@ binary right after extracting):
 
 ```text
 dist/
-├── golocaldownload-windows-amd64.zip    →  golocaldownload.exe
-├── golocaldownload-linux-arm64.tar.gz   →  golocaldownload  (with 0755 exec bit)
+├── golocaldownload-windows-amd64.zip    →  golocaldownload.exe + start.bat
+├── golocaldownload-linux-arm64.tar.gz   →  golocaldownload + start.sh (both 0755)
 ├── ……                                    (15 platforms in total)
 ├── golocaldownload(.exe)                ← uncompressed binary for the host platform, for local use only, not published
 └── checksums.txt                        ← SHA256 of the 15 archives (LF line endings, works with sha256sum -c)
 ```
 
 Archived executables are versioned (from `git describe`; `dev` outside a git environment) —
-check with `golocaldownload -version`.
+check with `golocaldownload -version`. Every archive also carries a launcher (`start.bat` on
+Windows, `start.sh` elsewhere): unpack and double-click / run it, and every argument is passed
+straight through to the program, e.g. `start.bat -config .\env.ini` or
+`./start.sh -config /etc/gld/env.ini`.
 
 > Archives are produced by `tools/pack` rather than system `tar` / `zip`: Windows' bundled
 > `tar.exe` (a stripped-down bsdtar) ignores Unix permission bits and doesn't support `--mode`,
 > so its archives extract as 644 on Linux and won't run; `zip(1)` isn't guaranteed to exist on
 > macOS / Linux, and implementations write inconsistent bytes. `pack` uses the Go standard
 > library to explicitly write 0755 and fixes timestamps, so archives and checksums are
-> reproducible from the same source on any platform with either script.
+> reproducible from the same source on any platform with either script; extra files such as
+> the launchers go into the same archive via `-add` (`name-inside-archive=source-path`,
+> repeatable).
 
 ### Releasing
 
@@ -318,6 +366,9 @@ automatically if missing): drop files in and refresh the page. The startup log p
 version, config source, download library directory, and actually accessible URLs (local +
 LAN); `Ctrl+C` waits for in-flight downloads to finish before exiting.
 
+The build output lands in the repository root, where the `start.bat` / `start.sh` next to it can
+be used directly (double-click / `./start.sh`) — same usage as the copy inside the archives.
+
 **4. Configuration**
 
 Four approaches — pick whichever you prefer (priority as in "Config sources" above):
@@ -368,8 +419,17 @@ To get archives for all platforms in one go, use `./build.sh` or `.\build.ps1`
 
 Download the archive for your platform from
 [Releases](https://github.com/kite88/golocaldownload/releases/latest)
-(`.zip` for Windows, `.tar.gz` for Linux / macOS / FreeBSD), extract, and run. To change the
-port or download library directory, drop an `env.ini` in the same directory (templates in
+(`.zip` for Windows, `.tar.gz` for Linux / macOS / FreeBSD) and extract it:
+
+- **Windows**: double-click `start.bat` (equivalent to running `golocaldownload.exe` directly).
+  The window stays open after the program exits so the exit code is readable — press any key to
+  close it; set `GLD_NO_PAUSE=1` beforehand to skip that when calling it from another script.
+- **Linux / macOS / FreeBSD**: run `./start.sh` (it lives next to the binary; the exec bit is
+  already set inside the archive).
+
+Both launchers only start the program in the foreground and pass arguments straight through, so
+`start.bat -config .\env.ini` is equivalent to `golocaldownload.exe -config .\env.ini`. To change
+the port or download library directory, drop an `env.ini` in the same directory (templates in
 `config/env.ini.*`).
 
 ### Option 3: Docker Deployment (Build Image Locally)
