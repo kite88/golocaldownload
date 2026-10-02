@@ -11,7 +11,9 @@
 
     Output layout in dist/:
         golocaldownload-windows-<arch>.zip   contains golocaldownload.exe
+                                             + start.bat (launcher)
         golocaldownload-<os>-<arch>.tar.gz   contains golocaldownload (mode 0755)
+                                             + start.sh (mode 0755, launcher)
         golocaldownload(.exe)                host platform only, uncompressed,
                                              ready to run without unzipping
         checksums.txt                        SHA256 of every artifact above
@@ -106,7 +108,12 @@ try {
 
         $env:GOOS = $goos
         $env:GOARCH = $goarch
-        if ($goarm) { $env:GOARM = $goarm } else { Remove-Item Env:GOARM -ErrorAction SilentlyContinue }
+        # GOARM only means anything for GOARCH=arm; other targets ignore it. Cleared
+        # through the .NET API rather than "Remove-Item Env:GOARM": some terminal
+        # integrations treat deleting a missing variable as a hard error, which would
+        # abort the build here.
+        if ($goarm) { $env:GOARM = $goarm }
+        else { [System.Environment]::SetEnvironmentVariable('GOARM', $null) }
 
         # Short name inside the archive: no os/arch/version.
         $binName = 'golocaldownload'
@@ -121,11 +128,15 @@ try {
 
         if ($goos -eq 'windows') {
             $archiveName = "golocaldownload-${goos}-${archLabel}.zip"
+            $launcher = 'start.bat'
         }
         else {
             $archiveName = "golocaldownload-${goos}-${archLabel}.tar.gz"
+            $launcher = 'start.sh'
         }
-        & $packer -in $binPath -out (Join-Path $OutDir $archiveName) -name $binName -mode 0755
+        # Ship the launcher inside the archive (-add): unpack, double-click
+        # start.bat or run ./start.sh, no command line needed.
+        & $packer -in $binPath -out (Join-Path $OutDir $archiveName) -name $binName -mode 0755 -add "$launcher=$(Join-Path $PSScriptRoot $launcher)"
         if ($LASTEXITCODE -ne 0) { throw "pack failed: $target" }
 
         $isHost = ($goos -eq $hostOS) -and ($goarch -eq $hostArch)
@@ -139,7 +150,7 @@ try {
         $artifacts += [pscustomobject]@{
             Target   = $target
             Archive  = $archiveName
-            Contains = $binName
+            Contains = "$binName + $launcher"
             SizeMB   = [math]::Round((Get-Item (Join-Path $OutDir $archiveName)).Length / 1MB, 2)
         }
     }
@@ -157,7 +168,11 @@ try {
     Write-Host ("{0} archives (version {1}) + checksums.txt -> {2}" -f $artifacts.Count, $version, $OutDir)
 }
 finally {
-    Remove-Item Env:GOOS, Env:GOARCH, Env:GOARM, Env:CGO_ENABLED -ErrorAction SilentlyContinue
+    # Restore this session's environment (a .ps1 runs in the caller's process), same
+    # .NET API as above so that a missing variable can never be a hard error here.
+    foreach ($name in 'GOOS', 'GOARCH', 'GOARM', 'CGO_ENABLED') {
+        [System.Environment]::SetEnvironmentVariable($name, $null)
+    }
     if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
     Pop-Location
 }

@@ -22,9 +22,9 @@ Options:
   -h          show this help
 
 Artifacts per platform: golocaldownload-<os>-<arch>.zip for Windows (contains
-golocaldownload.exe) and golocaldownload-<os>-<arch>.tar.gz elsewhere (contains
-golocaldownload with mode 0755), plus the host platform's binary uncompressed,
-plus checksums.txt with their SHA256 sums.
+golocaldownload.exe and the start.bat launcher) and golocaldownload-<os>-<arch>.tar.gz
+elsewhere (contains golocaldownload and start.sh, both mode 0755), plus the host
+platform's binary uncompressed, plus checksums.txt with their SHA256 sums.
 EOF
 }
 
@@ -114,12 +114,16 @@ for target in $targets; do
 
     if [ "$goos" = windows ]; then
         archive_name=golocaldownload-$goos-$arch_label.zip
+        launcher=start.bat
     else
         archive_name=golocaldownload-$goos-$arch_label.tar.gz
+        launcher=start.sh
     fi
 
     build_bin "$bin_path"
-    "$staging/pack" -in "$bin_path" -out "$out_dir/$archive_name" -name "$bin_name" -mode 0755
+    # The launcher ships inside the archive (-add): unpack, double-click
+    # start.bat or run ./start.sh, no command line needed.
+    "$staging/pack" -in "$bin_path" -out "$out_dir/$archive_name" -name "$bin_name" -mode 0755 -add "$launcher=$PWD/$launcher"
 
     note=''
     if [ "$goos" = "$host_os" ] && [ "$goarch" = "$host_arch" ]; then

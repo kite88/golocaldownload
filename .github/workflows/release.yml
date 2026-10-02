@@ -75,7 +75,7 @@ jobs:
           else
             gh release create "${GITHUB_REF_NAME}" \
               --title "${GITHUB_REF_NAME}" \
-              --notes "Windows 用户下载 .zip，Linux / macOS / FreeBSD 用户下载 .tar.gz；解压后即为短名的 golocaldownload 可执行文件（tar.gz 已带 0755 权限，无需 chmod），直接运行即可，下载库目录会在程序启动时自动创建。checksums.txt 是全部归档的 SHA256，可用 sha256sum -c 校验。" \
+              --notes "Windows 用户下载 .zip，Linux / macOS / FreeBSD 用户下载 .tar.gz；解压后得到短名的 golocaldownload 可执行文件（tar.gz 已带 0755 权限，无需 chmod），以及配套的启动脚本 start.bat / start.sh——双击或 ./start.sh 即可运行，参数原样透传（如 -config env.ini），下载库目录会在程序启动时自动创建。checksums.txt 是全部归档的 SHA256，可用 sha256sum -c 校验。" \
               --generate-notes \
               "${prerelease[@]}" \
               dist/*.zip dist/*.tar.gz dist/checksums.txt
