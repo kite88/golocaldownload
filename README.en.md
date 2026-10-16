@@ -1,6 +1,6 @@
 [简体中文](README.md) · English
 
-# golocaldownload · Local File Download Service
+# Golocaldownload · Local File Download Service
 
 [![Release](https://img.shields.io/github/v/release/kite88/golocaldownload)](https://github.com/kite88/golocaldownload/releases/latest)
 [![License](https://img.shields.io/github/license/kite88/golocaldownload)](LICENSE)
